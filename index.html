@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080a0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="GymOS — Gerencie seus treinos com inteligência." />
+  <title>GymOS</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     LOADER GLOBAL
+════════════════════════════════════════ -->
+<div id="global-loader">
+  <div class="loader-content">
+    <div class="loader-logo">GYM<span>OS</span></div>
+    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TOAST
+════════════════════════════════════════ -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- ════════════════════════════════════════
+     MODAL — 30 TREINOS
+════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-badge">⚡ ALERTA DE EVOLUÇÃO</div>
+    <h2 class="modal-title">Seu corpo pede novos estímulos.</h2>
+    <p class="modal-text">
+      Você completou <strong>30 treinos</strong> com a mesma rotina.
+      Para continuar evoluindo, é hora de mudar a programação.
+      Zere o contador para liberar o app e atualizar seus treinos.
+    </p>
+    <div class="modal-counter">
+      <span class="modal-counter-num">30</span>
+      <span class="modal-counter-label">treinos realizados</span>
+    </div>
+    <button id="btn-zerar-contador" class="btn btn-accent btn-full">
+      <span>🔄</span> Zerar Contador e Continuar
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     BOTTOM NAV
+════════════════════════════════════════ -->
+<nav id="bottom-nav" class="bottom-nav hidden" aria-label="Navegação principal">
+  <button class="nav-item active" data-tab="treino" aria-label="Treino">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M18 4v16M6 12h12M2 7h4M18 7h4M2 17h4M18 17h4"/></svg>
+    <span>Treino</span>
+  </button>
+  <button class="nav-item" data-tab="historico" aria-label="Histórico">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span>Histórico</span>
+  </button>
+  <button class="nav-item" data-tab="aparelhos" aria-label="Aparelhos">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2M12 12v4M10 14h4"/></svg>
+    <span>Aparelhos</span>
+  </button>
+  <button class="nav-item" data-tab="perfil" aria-label="Perfil">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Perfil</span>
+  </button>
+</nav>
+
+<!-- ════════════════════════════════════════
+     TELA 0 — LOGIN
+════════════════════════════════════════ -->
+<section id="screen-login" class="screen screen-login" role="main">
+  <div class="login-bg-grid"></div>
+  <div class="login-content">
+    <div class="login-top">
+      <div class="login-logo">GYM<em>OS</em></div>
+      <p class="login-tagline">Sua academia. Seus dados. Seu ritmo.</p>
+    </div>
+
+    <div class="login-card">
+      <div class="login-card-inner">
+        <h1 class="login-headline">
+          Treinos que<br/><span class="accent-text">evoluem</span><br/>com você.
+        </h1>
+        <p class="login-desc">
+          Registre aparelhos, monte treinos, acompanhe seu progresso.
+          Tudo sincronizado na nuvem, 100% seguro.
+        </p>
+        <button id="btn-google-login" class="btn btn-google" aria-label="Entrar com Google">
+          <span class="google-icon"></span>
+          Entrar com Google
+        </button>
+        <p class="login-terms">Ao entrar, você concorda com os termos de uso. Seus dados são privados e protegidos.</p>
+      </div>
+    </div>
+
+    <div class="login-features">
+      <div class="feat-item"><span>📍</span><span>Check-in com GPS</span></div>
+      <div class="feat-item"><span>📊</span><span>Histórico completo</span></div>
+      <div class="feat-item"><span>🔒</span><span>Dados 100% privados</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 1 — CHECK-IN
+════════════════════════════════════════ -->
+<section id="screen-checkin" class="screen hidden" role="main">
+  <header class="app-header">
+    <div class="header-logo">GYM<em>OS</em></div>
+    <div class="header-right">
+      <div class="user-chip" id="user-chip">
+        <img id="user-avatar" src="" alt="Avatar" width="28" height="28" />
+        <span id="user-name">—</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="checkin-greeting">
+    <p class="greeting-time" id="greeting-time">Bom dia</p>
+    <h2 class="greeting-name" id="greeting-name">Atleta</h2>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-treinos">0</div>
+      <div class="stat-label">Treinos<br/>realizados</div>
+      <div class="stat-progress">
+        <div class="stat-progress-fill" id="stat-progress-fill" style="width:0%"></div>
+      </div>
+      <div class="stat-progress-label" id="stat-progress-label">0 / 30</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-ultima">—</div>
+      <div class="stat-label">Último<br/>treino</div>
+    </div>
+  </div>
+
+  <div class="checkin-hero">
+    <div class="checkin-ring" id="checkin-ring">
+      <div class="checkin-icon">📍</div>
+    </div>
+    <h3 class="checkin-title">Pronto para treinar?</h3>
+    <p class="checkin-sub">Confirme sua localização para fazer o check-in na academia.</p>
+  </div>
+
+  <button id="btn-checkin" class="btn btn-accent">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    Fazer Check-in
+  </button>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 2 — SELEÇÃO DE TREINO
+════════════════════════════════════════ -->
+<section id="screen-selecao" class="screen hidden" role="main">
+  <header class="app-header">
+    <div class="header-logo">GYM<em>OS</em></div>
+    <div class="header-right">
+      <div class="checkin-badge">✓ Check-in</div>
+    </div>
+  </header>
+
+  <div class="screen-intro">
+    <span class="screen-eyebrow">SELECIONE A ROTINA</span>
+    <h2 class="screen-title">Qual treino<br/>de hoje?</h2>
+  </div>
+
+  <div class="treino-list">
+    <div class="treino-card" data-tipo="A" tabindex="0" role="button" aria-label="Treino A">
+      <div class="treino-letter">A</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino A</div>
+        <div class="treino-desc">Peito, Tríceps & Ombros</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+    <div class="treino-card" data-tipo="B" tabindex="0" role="button" aria-label="Treino B">
+      <div class="treino-letter">B</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino B</div>
+        <div class="treino-desc">Costas, Bíceps & Abdômen</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+    <div class="treino-card" data-tipo="C" tabindex="0" role="button" aria-label="Treino C">
+      <div class="treino-letter">C</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino C</div>
+        <div class="treino-desc">Pernas & Glúteos</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 3 — EXECUÇÃO DE TREINO
+════════════════════════════════════════ -->
+<section id="screen-execucao" class="screen hidden" role="main">
+  <header class="exec-header">
+    <button class="back-btn" id="btn-voltar" aria-label="Voltar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div>
+      <p class="exec-eyebrow">EM EXECUÇÃO</p>
+      <h2 class="exec-title" id="exec-title">Treino A</h2>
+    </div>
+    <div class="exec-timer" id="exec-timer">00:00</div>
+  </header>
+
+  <!-- CARDIO -->
+  <div class="section-block">
+    <div class="block-header">
+      <span class="block-label">❤️ Cardio</span>
+      <span class="block-optional">Opcional</span>
+    </div>
+    <div class="cardio-row">
+      <div class="field-group">
+        <label class="field-label" for="cardio-aparelho">Aparelho</label>
+        <select id="cardio-aparelho">
+          <option value="esteira">🏃 Esteira</option>
+          <option value="bike">🚴 Bike Ergométrica</option>
+          <option value="eliptico">🌀 Elíptico</option>
+          <option value="remo">🚣 Remo Ergométrico</option>
+          <option value="escada">🪜 Escada Rolante</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="cardio-min">Minutos</label>
+        <input id="cardio-min" type="number" min="0" max="180" step="5" placeholder="30" class="input-minutes" />
+      </div>
+    </div>
+  </div>
+
+  <!-- FORÇA -->
+  <div class="section-block">
+    <div class="block-header">
+      <span class="block-label">🏋️ Força</span>
+      <span id="ex-counter" class="block-count">0 exercícios</span>
+    </div>
+    <div id="exercicio-list" class="exercicio-list">
+      <!-- renderizado via JS -->
+    </div>
+  </div>
+
+  <div class="exec-footer">
+    <button id="btn-finalizar" class="btn btn-accent btn-full">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      Finalizar Treino
+    </button>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 4 — APARELHOS
+════════════════════════════════════════ -->
+<section id="screen-aparelhos" class="screen hidden" role="main">
+  <header class="app-header">
+    <h2 class="header-title">Aparelhos</h2>
+    <button class="toggle-form-btn" id="btn-toggle-form" aria-label="Adicionar aparelho">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </header>
+
+  <!-- FORMULÁRIO -->
+  <div id="form-aparelho-wrap" class="form-wrap hidden">
+    <div class="form-card">
+      <h3 class="form-title">Cadastrar Aparelho</h3>
+      <form id="form-aparelho" novalidate>
+        <div class="field-group">
+          <label class="field-label" for="input-nome-aparelho">Nome do Aparelho *</label>
+          <input id="input-nome-aparelho" type="text" placeholder="Ex: Supino Reto" maxlength="60" required autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="input-num-aparelho">Nº do Aparelho na Academia *</label>
+          <input id="input-num-aparelho" type="text" placeholder="Ex: 14" maxlength="10" required autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Foto (opcional)</label>
+          <label class="file-upload-area" for="foto-aparelho">
+            <input id="foto-aparelho" type="file" accept="image/*" capture="environment" />
+            <div class="upload-inner">
+              <span class="upload-icon" id="upload-icon-label">📷</span>
+              <span class="upload-text" id="upload-text-label">Toque para <strong>fotografar</strong> o aparelho</span>
+            </div>
+          </label>
+          <img id="preview-foto" src="" alt="Pré-visualização" />
+          <div id="upload-progress-wrap" class="upload-progress hidden">
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="upload-bar" style="width:0%"></div>
+            </div>
+            <span id="upload-percent" class="upload-pct">0%</span>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="btn-cancel-form">Cancelar</button>
+          <button type="submit" class="btn btn-accent" id="btn-submit-aparelho">
+            <span id="submit-label">Salvar Aparelho</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div class="aparelhos-section">
+    <div class="aparelhos-search-wrap">
+      <input id="aparelhos-search" type="text" placeholder="🔍  Buscar aparelho..." class="search-input" />
+    </div>
+    <div id="aparelhos-grid" class="aparelhos-grid">
+      <!-- renderizado via JS -->
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 5 — HISTÓRICO
+════════════════════════════════════════ -->
+<section id="screen-historico" class="screen hidden" role="main">
+  <header class="app-header">
+    <h2 class="header-title">Histórico</h2>
+  </header>
+  <div id="historico-list" class="historico-list">
+    <!-- renderizado via JS -->
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     TELA 6 — PERFIL
+════════════════════════════════════════ -->
+<section id="screen-perfil" class="screen hidden" role="main">
+  <header class="app-header">
+    <h2 class="header-title">Perfil</h2>
+  </header>
+  <div class="perfil-card">
+    <img id="perfil-avatar" src="" alt="Foto de perfil" class="perfil-avatar" />
+    <h3 class="perfil-name" id="perfil-name">—</h3>
+    <p class="perfil-email" id="perfil-email">—</p>
+  </div>
+
+  <div class="perfil-stats-grid">
+    <div class="perfil-stat">
+      <span class="perfil-stat-val" id="perfil-total-treinos">0</span>
+      <span class="perfil-stat-label">Total de treinos</span>
+    </div>
+    <div class="perfil-stat">
+      <span class="perfil-stat-val" id="perfil-total-aparelhos">0</span>
+      <span class="perfil-stat-label">Aparelhos</span>
+    </div>
+  </div>
+
+  <div class="perfil-actions">
+    <button id="btn-logout" class="btn btn-danger-outline">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      Sair da Conta
+    </button>
+  </div>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
