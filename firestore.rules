@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth()        { return request.auth != null; }
+    function isOwner(uid)    { return isAuth() && request.auth.uid == uid; }
+    function ownerMatches()  { return isAuth() && request.auth.uid == resource.data.usuario_id; }
+    function newOwnerOk()    { return request.resource.data.usuario_id == request.auth.uid; }
+
+    match /usuarios/{uid} {
+      allow read, update, delete: if isOwner(uid);
+      allow create:               if isOwner(uid) && newOwnerOk();
+    }
+    match /aparelhos/{id} {
+      allow read, delete:         if isAuth() && ownerMatches();
+      allow create:               if isAuth() && newOwnerOk();
+      allow update:               if isAuth() && ownerMatches() && newOwnerOk();
+    }
+    match /treinos_base/{id} {
+      allow read, delete:         if isAuth() && ownerMatches();
+      allow create:               if isAuth() && newOwnerOk();
+      allow update:               if isAuth() && ownerMatches() && newOwnerOk();
+    }
+    match /historico_treinos/{id} {
+      allow read, delete:         if isAuth() && ownerMatches();
+      allow create:               if isAuth() && newOwnerOk();
+      allow update:               if isAuth() && ownerMatches() && newOwnerOk();
+    }
+    match /{doc=**} { allow read, write: if false; }
+  }
+}
