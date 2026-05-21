@@ -743,12 +743,20 @@ async function carregarHistorico() {
   list.innerHTML = '<p style="color:var(--text3);font-size:14px;padding:20px 0">Carregando...</p>';
   try {
     const uid  = S.user.uid;
+    // Busca sem orderBy para evitar necessidade de índice composto
+    // Ordena localmente depois
     const snap = await getDocs(query(
       collection(db,'historico_treinos'),
       where('usuario_id','==',uid),
-      orderBy('data','desc'),
-      limit(30)
+      limit(50)
     ));
+    // Ordena localmente por data decrescente
+    const docs = snap.docs.sort((a,b) => {
+      const ta = a.data().data?.toMillis?.() || 0;
+      const tb = b.data().data?.toMillis?.() || 0;
+      return tb - ta;
+    }).slice(0,30);
+
     if (snap.empty) {
       list.innerHTML = `<div class="empty-state">
         <span class="empty-icon">📊</span>
@@ -758,7 +766,7 @@ async function carregarHistorico() {
       return;
     }
     list.innerHTML = '';
-    snap.docs.forEach(d => {
+    docs.forEach(d => {
       const h    = d.data();
       const card = document.createElement('div');
       card.className = 'historico-card';
