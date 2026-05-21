@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// app.js — GymOS PWA
+// app.js — GymOS PWA v2
 // Firebase SDK v10 Modular | Vanilla JS ES6+
 // ═══════════════════════════════════════════════════════════
 
@@ -12,7 +12,7 @@ import {
 import {
   doc, getDoc, setDoc, addDoc, getDocs, collection,
   query, where, updateDoc, increment, serverTimestamp,
-  orderBy, limit
+  orderBy, limit, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 import {
@@ -23,32 +23,35 @@ import {
 // STATE
 // ═══════════════════════════════════════════════════════════
 const S = {
-  user:          null,
-  userData:      null,
-  tipoSel:       null,
-  treinoAtual:   null,
-  aparelhos:     [],
-  checkinOk:     false,
-  activeTab:     'treino',
-  timerInterval: null,
-  timerSecs:     0,
+  user:           null,
+  userData:       null,
+  tipoSel:        null,
+  treinoAtual:    null,
+  aparelhos:      [],
+  checkinOk:      false,
+  activeTab:      'treino',
+  timerInterval:  null,
+  timerSecs:      0,
+  // Montar treinos
+  montarTipoAtual: 'A',
+  montarExercicios: { A: [], B: [], C: [] },
+  montarDocIds:     { A: null, B: null, C: null },
 };
 
 // ═══════════════════════════════════════════════════════════
-// DOM HELPERS
+// DOM
 // ═══════════════════════════════════════════════════════════
 const $  = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
-const SCREENS = ['login','checkin','selecao','execucao','aparelhos','historico','perfil'];
+const SCREENS = ['login','checkin','selecao','execucao','montar','aparelhos','historico','perfil'];
 
 function showScreen(name) {
   SCREENS.forEach(n => {
     const el = $(`screen-${n}`);
     if (el) el.classList.toggle('hidden', n !== name);
   });
-  const hasNav = name !== 'login';
-  $('bottom-nav').classList.toggle('hidden', !hasNav);
+  $('bottom-nav').classList.toggle('hidden', name === 'login');
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === S.activeTab));
 }
 
@@ -73,9 +76,11 @@ function greetingText() {
 
 function fmtDate(ts) {
   if (!ts) return '—';
-  const d = (ts.toDate ? ts.toDate() : new Date(ts));
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
+
+const FALLBACK_IMG = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect fill="#1b1f2c" width="64" height="64"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="28" fill="#c9ff00">🏋️</text></svg>')}`;
 
 // ═══════════════════════════════════════════════════════════
 // TIMER
@@ -85,8 +90,8 @@ function startTimer() {
   clearInterval(S.timerInterval);
   S.timerInterval = setInterval(() => {
     S.timerSecs++;
-    const m = String(Math.floor(S.timerSecs / 60)).padStart(2, '0');
-    const s = String(S.timerSecs % 60).padStart(2, '0');
+    const m = String(Math.floor(S.timerSecs / 60)).padStart(2,'0');
+    const s = String(S.timerSecs % 60).padStart(2,'0');
     const el = $('exec-timer');
     if (el) el.textContent = `${m}:${s}`;
   }, 1000);
@@ -115,8 +120,11 @@ onAuthStateChanged(auth, async user => {
   if (user) {
     S.user = user;
     showLoader();
-    try { await initApp(); } catch(e) { console.error(e); toast('Erro ao inicializar: ' + e.message, 'error'); }
-    hideLoader();
+    try { await initApp(); } catch(e) {
+      console.error(e);
+      toast('Erro ao inicializar: ' + e.message, 'error');
+      hideLoader();
+    }
   } else {
     S.user = null; S.userData = null;
     showScreen('login');
@@ -128,13 +136,15 @@ onAuthStateChanged(auth, async user => {
 // INIT
 // ═══════════════════════════════════════════════════════════
 async function initApp() {
-  const uid  = S.user.uid;
-  const name = (S.user.displayName || 'Atleta').split(' ')[0];
+  const uid   = S.user.uid;
+  const name  = (S.user.displayName || 'Atleta').split(' ')[0];
   const photo = S.user.photoURL || '';
 
-  // Avatar e nomes
-  ['user-avatar','perfil-avatar'].forEach(id => { const el=$(id); if(el){ el.src=photo; el.onerror=()=>el.style.display='none'; }});
-  ['user-name'].forEach(id => { const el=$(id); if(el) el.textContent = name; });
+  ['user-avatar','perfil-avatar'].forEach(id => {
+    const el = $(id);
+    if (el) { el.src = photo; el.onerror = () => el.style.display='none'; }
+  });
+  $('user-name').textContent   = name;
   $('greeting-name').textContent = name;
   $('greeting-time').textContent = greetingText();
   $('perfil-name').textContent   = S.user.displayName || 'Atleta';
@@ -150,33 +160,31 @@ async function initApp() {
     S.userData = snap.data();
   }
 
-  // Stats
-  const ct = S.userData.contador_treinos ?? 0;
-  $('stat-treinos').textContent   = ct;
-  $('perfil-total-treinos').textContent = ct;
+  const ct  = S.userData.contador_treinos ?? 0;
   const pct = Math.min((ct / 30) * 100, 100);
-  $('stat-progress-fill').style.width = pct + '%';
+  $('stat-treinos').textContent        = ct;
+  $('stat-progress-fill').style.width  = pct + '%';
   $('stat-progress-label').textContent = `${ct} / 30`;
+  $('perfil-total-treinos').textContent = ct;
 
   // Último treino
   try {
-    const hq = query(
-      collection(db, 'historico_treinos'),
-      where('usuario_id','==', uid),
-      orderBy('data','desc'), limit(1)
-    );
+    const hq   = query(collection(db,'historico_treinos'), where('usuario_id','==',uid), orderBy('data','desc'), limit(1));
     const hsnap = await getDocs(hq);
-    if (!hsnap.empty) {
-      const d = hsnap.docs[0].data().data;
-      $('stat-ultima').textContent = fmtDate(d);
-    }
+    if (!hsnap.empty) $('stat-ultima').textContent = fmtDate(hsnap.docs[0].data().data);
   } catch(_) {}
 
-  // Modal 30 treinos
-  if (ct >= 30) { showModal30(); return; }
+  // Carregar aparelhos em background
+  carregarAparelhos();
+
+  // Carregar descrições dos treinos base
+  carregarDescricoesTreinos();
+
+  if (ct >= 30) { showModal30(); hideLoader(); return; }
 
   S.activeTab = 'treino';
   showScreen('checkin');
+  hideLoader();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -191,10 +199,10 @@ function showModal30() {
 $('btn-zerar-contador').addEventListener('click', async () => {
   try {
     showLoader();
-    await updateDoc(doc(db, 'usuarios', S.user.uid), { contador_treinos: 0 });
+    await updateDoc(doc(db,'usuarios',S.user.uid), { contador_treinos: 0 });
     S.userData.contador_treinos = 0;
-    $('stat-treinos').textContent = 0;
-    $('stat-progress-fill').style.width = '0%';
+    $('stat-treinos').textContent        = 0;
+    $('stat-progress-fill').style.width  = '0%';
     $('stat-progress-label').textContent = '0 / 30';
     $('modal-overlay').classList.add('hidden');
     hideLoader();
@@ -213,7 +221,7 @@ $('btn-zerar-contador').addEventListener('click', async () => {
 // ═══════════════════════════════════════════════════════════
 $('btn-checkin').addEventListener('click', () => {
   if (!navigator.geolocation) {
-    toast('Geolocalização indisponível neste dispositivo.', 'error');
+    toast('Geolocalização indisponível.', 'error');
     return;
   }
   const btn = $('btn-checkin');
@@ -222,11 +230,10 @@ $('btn-checkin').addEventListener('click', () => {
 
   navigator.geolocation.getCurrentPosition(
     pos => {
-      const { accuracy } = pos.coords;
       S.checkinOk = true;
       btn.disabled = false;
       btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Fazer Check-in`;
-      toast(`✅ Check-in OK! ±${Math.round(accuracy)}m`);
+      toast(`✅ Check-in confirmado! ±${Math.round(pos.coords.accuracy)}m`);
       S.activeTab = 'treino';
       showScreen('selecao');
     },
@@ -246,6 +253,28 @@ $('btn-checkin').addEventListener('click', () => {
 // ═══════════════════════════════════════════════════════════
 // TELA 2 — SELEÇÃO
 // ═══════════════════════════════════════════════════════════
+async function carregarDescricoesTreinos() {
+  try {
+    const uid  = S.user.uid;
+    const snap = await getDocs(query(collection(db,'treinos_base'), where('usuario_id','==',uid)));
+    ['A','B','C'].forEach(t => {
+      const el = $(`desc-treino-${t}`);
+      if (!el) return;
+      const d = snap.docs.find(d => d.data().nome === `Treino ${t}`);
+      if (d) {
+        const exs = d.data().exercicios || [];
+        el.textContent = exs.length > 0
+          ? `${exs.length} exercício${exs.length>1?'s':''} cadastrado${exs.length>1?'s':''}`
+          : 'Sem exercícios — toque para adicionar';
+      } else {
+        el.textContent = 'Sem exercícios — toque para adicionar';
+      }
+    });
+  } catch(e) {
+    console.error('desc treinos:', e);
+  }
+}
+
 $$('.treino-card').forEach(card => {
   card.addEventListener('click', () => selecionarTreino(card.dataset.tipo));
   card.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') selecionarTreino(card.dataset.tipo); });
@@ -255,13 +284,12 @@ async function selecionarTreino(tipo) {
   S.tipoSel = tipo;
   showLoader();
   try {
-    const uid = S.user.uid;
-    const q   = query(
-      collection(db, 'treinos_base'),
-      where('usuario_id','==', uid),
-      where('nome','==', `Treino ${tipo}`)
-    );
-    const snap = await getDocs(q);
+    const uid  = S.user.uid;
+    const snap = await getDocs(query(
+      collection(db,'treinos_base'),
+      where('usuario_id','==',uid),
+      where('nome','==',`Treino ${tipo}`)
+    ));
     S.treinoAtual = snap.empty
       ? { nome: `Treino ${tipo}`, exercicios: [] }
       : snap.docs[0].data();
@@ -272,7 +300,7 @@ async function selecionarTreino(tipo) {
     showScreen('execucao');
   } catch(err) {
     console.error(err);
-    toast('Erro ao carregar treino: ' + err.message, 'error');
+    toast('Erro ao carregar treino.', 'error');
   }
   hideLoader();
 }
@@ -285,30 +313,28 @@ function renderExecucao() {
   const list = $('exercicio-list');
   list.innerHTML = '';
   const exs = S.treinoAtual?.exercicios || [];
-  $('ex-counter').textContent = `${exs.length} exercício${exs.length !== 1 ? 's' : ''}`;
+  $('ex-counter').textContent = `${exs.length} exercício${exs.length!==1?'s':''}`;
 
   if (!exs.length) {
     list.innerHTML = `<div class="empty-state">
       <span class="empty-icon">📋</span>
       <p class="empty-title">Treino vazio</p>
-      <p class="empty-text">Nenhum exercício cadastrado ainda. Adicione aparelhos na aba Aparelhos.</p>
+      <p class="empty-text">Monte esse treino na aba <strong style="color:var(--accent)">Montar</strong> antes de executar.</p>
     </div>`;
     return;
   }
 
   exs.forEach((ex, i) => {
-    const fallback = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect fill="#1b1f2c" width="64" height="64"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="28" fill="#c9ff00">🏋️</text></svg>`)}`;
     const card = document.createElement('div');
     card.className = 'exercicio-card';
     card.dataset.index = i;
     card.innerHTML = `
       <div class="ex-top">
-        <img class="ex-thumb" src="${ex.url_foto || fallback}" alt="${ex.nome}"
-             onerror="this.src='${fallback}'">
+        <img class="ex-thumb" src="${ex.url_foto || FALLBACK_IMG}" alt="${ex.nome}" onerror="this.src='${FALLBACK_IMG}'">
         <div class="ex-num-badge"><span class="ex-num">${ex.numero_aparelho || '—'}</span></div>
         <div class="ex-info">
           <div class="ex-name">${ex.nome}</div>
-          <div class="ex-meta">${ex.series_meta || '3'}x${ex.reps_meta || '12'} reps · meta</div>
+          <div class="ex-meta">${ex.series_meta||3}x${ex.reps_meta||12} reps · meta</div>
         </div>
       </div>
       <div class="ex-inputs">
@@ -318,7 +344,7 @@ function renderExecucao() {
         </div>
         <div class="ex-input-cell">
           <span class="field-label">Reps realizadas</span>
-          <input type="number" class="input-reps" placeholder="${ex.reps_meta || '12'}" min="0" inputmode="numeric">
+          <input type="number" class="input-reps" placeholder="${ex.reps_meta||12}" min="0" inputmode="numeric">
         </div>
       </div>`;
     list.appendChild(card);
@@ -335,14 +361,11 @@ $('btn-finalizar').addEventListener('click', finalizarTreino);
 
 async function finalizarTreino() {
   stopTimer();
-  const uid = S.user.uid;
-
-  // Cardio
+  const uid       = S.user.uid;
   const cardioAp  = $('cardio-aparelho').value;
   const cardioMin = parseInt($('cardio-min').value) || 0;
+  const forca     = [];
 
-  // Força
-  const forca = [];
   $$('.exercicio-card').forEach(card => {
     const i  = parseInt(card.dataset.index);
     const ex = S.treinoAtual.exercicios[i];
@@ -357,19 +380,18 @@ async function finalizarTreino() {
 
   showLoader();
   try {
-    await addDoc(collection(db, 'historico_treinos'), {
+    await addDoc(collection(db,'historico_treinos'), {
       usuario_id:  uid,
       data:        serverTimestamp(),
       tipo_treino: `Treino ${S.tipoSel}`,
       cardio:      { aparelho: cardioAp, minutos: cardioMin },
       forca,
     });
-
-    await updateDoc(doc(db, 'usuarios', uid), { contador_treinos: increment(1) });
+    await updateDoc(doc(db,'usuarios',uid), { contador_treinos: increment(1) });
     S.userData.contador_treinos = (S.userData.contador_treinos ?? 0) + 1;
 
     const ct  = S.userData.contador_treinos;
-    const pct = Math.min((ct / 30) * 100, 100);
+    const pct = Math.min((ct/30)*100, 100);
     $('stat-treinos').textContent        = ct;
     $('stat-progress-fill').style.width  = pct + '%';
     $('stat-progress-label').textContent = `${ct} / 30`;
@@ -381,18 +403,203 @@ async function finalizarTreino() {
     if (ct >= 30) {
       setTimeout(showModal30, 900);
     } else {
-      setTimeout(() => { S.activeTab = 'treino'; showScreen('checkin'); }, 1400);
+      setTimeout(() => { S.activeTab='treino'; showScreen('checkin'); }, 1400);
     }
   } catch(err) {
     hideLoader();
     console.error('finalizar:', err);
-    toast('Erro ao salvar treino: ' + err.message, 'error');
+    toast('Erro ao salvar: ' + err.message, 'error');
     alert('Erro ao salvar treino:\n' + err.message);
   }
 }
 
 // ═══════════════════════════════════════════════════════════
-// TELA 4 — APARELHOS
+// TELA 4 — MONTAR TREINOS
+// ═══════════════════════════════════════════════════════════
+
+// Abas
+$$('.montar-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.montar-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    S.montarTipoAtual = btn.dataset.treino;
+    renderMontarLista();
+  });
+});
+
+async function carregarMontarTreinos() {
+  try {
+    const uid  = S.user.uid;
+    const snap = await getDocs(query(collection(db,'treinos_base'), where('usuario_id','==',uid)));
+    ['A','B','C'].forEach(t => {
+      const d = snap.docs.find(d => d.data().nome === `Treino ${t}`);
+      if (d) {
+        S.montarExercicios[t] = d.data().exercicios || [];
+        S.montarDocIds[t]     = d.id;
+      } else {
+        S.montarExercicios[t] = [];
+        S.montarDocIds[t]     = null;
+      }
+    });
+    renderMontarLista();
+  } catch(err) {
+    console.error('carregarMontarTreinos:', err);
+    toast('Erro ao carregar treinos.', 'error');
+  }
+}
+
+function renderMontarLista() {
+  const t    = S.montarTipoAtual;
+  const exs  = S.montarExercicios[t] || [];
+  const list = $('montar-exercicios-list');
+
+  $('montar-letra').textContent      = t;
+  $('montar-nome-treino').textContent = `Treino ${t}`;
+  $('montar-count').textContent       = `${exs.length} exercício${exs.length!==1?'s':''}`;
+  list.innerHTML = '';
+
+  if (!exs.length) {
+    list.innerHTML = `<div class="montar-tip">
+      <span class="montar-tip-icon">💡</span>
+      <span class="montar-tip-text">
+        Nenhum exercício ainda. Toque em <strong>"Adicionar Exercício"</strong> abaixo
+        para montar o <strong>Treino ${t}</strong>.
+        Você pode selecionar aparelhos já cadastrados ou preencher manualmente.
+      </span>
+    </div>`;
+    return;
+  }
+
+  exs.forEach((ex, i) => {
+    const item = document.createElement('div');
+    item.className = 'montar-ex-item';
+    item.innerHTML = `
+      <div class="montar-ex-num">${ex.numero_aparelho || '—'}</div>
+      <div class="montar-ex-info">
+        <div class="montar-ex-name">${ex.nome}</div>
+        <div class="montar-ex-meta">${ex.series_meta||3} séries × ${ex.reps_meta||12} reps</div>
+      </div>
+      <button class="montar-ex-del" data-index="${i}" title="Remover">✕</button>`;
+    list.appendChild(item);
+  });
+
+  // Botões de remover
+  list.querySelectorAll('.montar-ex-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.index);
+      S.montarExercicios[S.montarTipoAtual].splice(idx, 1);
+      renderMontarLista();
+      toast('Exercício removido.', 'info');
+    });
+  });
+}
+
+// Salvar treino no Firestore
+$('btn-salvar-treino').addEventListener('click', async () => {
+  const t   = S.montarTipoAtual;
+  const exs = S.montarExercicios[t];
+  const uid = S.user.uid;
+
+  showLoader();
+  try {
+    const data = {
+      usuario_id:  uid,
+      nome:        `Treino ${t}`,
+      exercicios:  exs,
+    };
+
+    if (S.montarDocIds[t]) {
+      await updateDoc(doc(db,'treinos_base',S.montarDocIds[t]), data);
+    } else {
+      const ref = await addDoc(collection(db,'treinos_base'), data);
+      S.montarDocIds[t] = ref.id;
+    }
+
+    hideLoader();
+    toast(`✅ Treino ${t} salvo com sucesso!`);
+    carregarDescricoesTreinos();
+  } catch(err) {
+    hideLoader();
+    console.error('salvar treino:', err);
+    toast('Erro ao salvar treino: ' + err.message, 'error');
+    alert('Erro:\n' + err.message);
+  }
+});
+
+// Abrir modal adicionar exercício
+$('btn-add-ex').addEventListener('click', () => {
+  popularSelectAparelhos();
+  limparFormEx();
+  $('modal-add-ex').classList.remove('hidden');
+});
+
+$('btn-close-add-ex').addEventListener('click', () => {
+  $('modal-add-ex').classList.add('hidden');
+});
+
+// Fechar modal clicando fora
+$('modal-add-ex').addEventListener('click', e => {
+  if (e.target === $('modal-add-ex')) $('modal-add-ex').classList.add('hidden');
+});
+
+// Selecionar aparelho preenche campos
+$('select-aparelho-ex').addEventListener('change', e => {
+  const val = e.target.value;
+  if (!val) return;
+  const ap = S.aparelhos.find(a => a.id === val);
+  if (!ap) return;
+  $('ex-nome').value = ap.nome;
+  $('ex-num').value  = ap.numero_aparelho;
+});
+
+function popularSelectAparelhos() {
+  const sel = $('select-aparelho-ex');
+  sel.innerHTML = '<option value="">-- Escolha um aparelho --</option>';
+  S.aparelhos.forEach(ap => {
+    const opt = document.createElement('option');
+    opt.value       = ap.id;
+    opt.textContent = `#${ap.numero_aparelho} · ${ap.nome}`;
+    sel.appendChild(opt);
+  });
+}
+
+function limparFormEx() {
+  $('select-aparelho-ex').value = '';
+  $('ex-nome').value   = '';
+  $('ex-num').value    = '';
+  $('ex-series').value = '';
+  $('ex-reps').value   = '';
+}
+
+$('btn-confirmar-ex').addEventListener('click', () => {
+  const nome   = $('ex-nome').value.trim();
+  const num    = $('ex-num').value.trim();
+  const series = parseInt($('ex-series').value) || 3;
+  const reps   = parseInt($('ex-reps').value) || 12;
+
+  if (!nome) { toast('Digite o nome do exercício.', 'error'); return; }
+
+  // Pega url_foto do aparelho selecionado se houver
+  const selVal = $('select-aparelho-ex').value;
+  const ap     = S.aparelhos.find(a => a.id === selVal);
+  const url_foto = ap?.url_foto || '';
+
+  S.montarExercicios[S.montarTipoAtual].push({
+    aparelho_id:     selVal || '',
+    nome,
+    numero_aparelho: num,
+    url_foto,
+    series_meta:     series,
+    reps_meta:       reps,
+  });
+
+  $('modal-add-ex').classList.add('hidden');
+  renderMontarLista();
+  toast(`"${nome}" adicionado ao Treino ${S.montarTipoAtual} 💪`);
+});
+
+// ═══════════════════════════════════════════════════════════
+// TELA 5 — APARELHOS
 // ═══════════════════════════════════════════════════════════
 let formOpen = false;
 
@@ -409,7 +616,7 @@ $('btn-cancel-form').addEventListener('click', () => {
   $('form-aparelho').reset();
   $('preview-foto').style.display = 'none';
   $('upload-icon-label').textContent = '📷';
-  $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong> o aparelho';
+  $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong>';
   $('upload-progress-wrap').classList.add('hidden');
 });
 
@@ -428,7 +635,6 @@ $('form-aparelho').addEventListener('submit', async e => {
   const nome   = $('input-nome-aparelho').value.trim();
   const numero = $('input-num-aparelho').value.trim();
   const file   = $('foto-aparelho').files[0];
-
   if (!nome || !numero) { toast('Preencha nome e número.', 'error'); return; }
 
   const btn = $('btn-submit-aparelho');
@@ -439,17 +645,14 @@ $('form-aparelho').addEventListener('submit', async e => {
   try {
     const uid = S.user.uid;
     let url_foto = '';
-
     if (file) url_foto = await uploadFoto(file, uid);
 
-    await addDoc(collection(db, 'aparelhos'), {
-      usuario_id: uid, nome, numero_aparelho: numero, url_foto
-    });
+    await addDoc(collection(db,'aparelhos'), { usuario_id:uid, nome, numero_aparelho:numero, url_foto });
 
     $('form-aparelho').reset();
     $('preview-foto').style.display = 'none';
     $('upload-icon-label').textContent = '📷';
-    $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong> o aparelho';
+    $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong>';
     $('upload-progress-wrap').classList.add('hidden');
     formOpen = false;
     $('form-aparelho-wrap').classList.add('hidden');
@@ -470,17 +673,17 @@ $('form-aparelho').addEventListener('submit', async e => {
 
 function uploadFoto(file, uid) {
   return new Promise((resolve, reject) => {
-    const name   = `${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`;
-    const ref    = sRef(storage, `aparelhos/${uid}/${name}`);
-    const task   = uploadBytesResumable(ref, file);
-    const wrap   = $('upload-progress-wrap');
-    const bar    = $('upload-bar');
-    const pctEl  = $('upload-percent');
+    const name  = `${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`;
+    const ref   = sRef(storage, `aparelhos/${uid}/${name}`);
+    const task  = uploadBytesResumable(ref, file);
+    const wrap  = $('upload-progress-wrap');
+    const bar   = $('upload-bar');
+    const pctEl = $('upload-percent');
     wrap.classList.remove('hidden');
 
     task.on('state_changed',
       snap => {
-        const p = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        const p = Math.round((snap.bytesTransferred/snap.totalBytes)*100);
         bar.style.width   = p + '%';
         pctEl.textContent = p + '%';
       },
@@ -502,6 +705,7 @@ async function carregarAparelhos() {
 
 function renderAparelhos(list) {
   const grid = $('aparelhos-grid');
+  if (!grid) return;
   grid.innerHTML = '';
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state">
@@ -511,13 +715,11 @@ function renderAparelhos(list) {
     </div>`;
     return;
   }
-  const fallback = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect fill="#1b1f2c" width="120" height="90"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="32" fill="#c9ff00">🏋️</text></svg>`)}`;
   list.forEach(ap => {
     const item = document.createElement('div');
     item.className = 'aparelho-item';
     item.innerHTML = `
-      <img class="aparelho-img" src="${ap.url_foto || fallback}" alt="${ap.nome}"
-           onerror="this.src='${fallback}'">
+      <img class="aparelho-img" src="${ap.url_foto || FALLBACK_IMG}" alt="${ap.nome}" onerror="this.src='${FALLBACK_IMG}'">
       <div class="aparelho-info">
         <div class="aparelho-num">#${ap.numero_aparelho}</div>
         <div class="aparelho-nome">${ap.nome}</div>
@@ -526,7 +728,6 @@ function renderAparelhos(list) {
   });
 }
 
-// Busca local
 $('aparelhos-search').addEventListener('input', e => {
   const q = e.target.value.toLowerCase();
   renderAparelhos(S.aparelhos.filter(a =>
@@ -535,7 +736,7 @@ $('aparelhos-search').addEventListener('input', e => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// TELA 5 — HISTÓRICO
+// TELA 6 — HISTÓRICO
 // ═══════════════════════════════════════════════════════════
 async function carregarHistorico() {
   const list = $('historico-list');
@@ -564,7 +765,7 @@ async function carregarHistorico() {
       const tags = [];
       if (h.cardio?.minutos > 0)
         tags.push(`<span class="h-tag cardio">❤️ ${h.cardio.aparelho} · ${h.cardio.minutos}min</span>`);
-      (h.forca || []).forEach(ex => {
+      (h.forca||[]).forEach(ex => {
         if (ex.carga > 0 || ex.reps > 0)
           tags.push(`<span class="h-tag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps}</span>`);
       });
@@ -573,12 +774,12 @@ async function carregarHistorico() {
           <span class="historico-tipo">${h.tipo_treino}</span>
           <span class="historico-data">${fmtDate(h.data)}</span>
         </div>
-        <div class="historico-tags">${tags.join('') || '<span class="h-tag">Sem detalhes</span>'}</div>`;
+        <div class="historico-tags">${tags.join('')||'<span class="h-tag">Sem detalhes registrados</span>'}</div>`;
       list.appendChild(card);
     });
   } catch(err) {
     console.error('historico:', err);
-    list.innerHTML = `<p style="color:var(--red);font-size:14px;padding:20px 0">Erro ao carregar histórico.</p>`;
+    list.innerHTML = `<p style="color:var(--red);font-size:14px;padding:20px 0">Erro ao carregar. Verifique as regras do Firestore.</p>`;
   }
 }
 
@@ -593,16 +794,25 @@ $$('.nav-item').forEach(btn => {
 
     if (tab === 'treino') {
       showScreen(S.checkinOk ? 'selecao' : 'checkin');
-    } else if (tab === 'historico') {
-      showScreen('historico');
+
+    } else if (tab === 'montar') {
+      showScreen('montar');
       showLoader();
-      await carregarHistorico();
+      await carregarMontarTreinos();
       hideLoader();
+
     } else if (tab === 'aparelhos') {
       showScreen('aparelhos');
       showLoader();
       await carregarAparelhos();
       hideLoader();
+
+    } else if (tab === 'historico') {
+      showScreen('historico');
+      showLoader();
+      await carregarHistorico();
+      hideLoader();
+
     } else if (tab === 'perfil') {
       showScreen('perfil');
     }

@@ -616,3 +616,141 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TELA MONTAR TREINOS — Adicionado
+═══════════════════════════════════════════════════════════ */
+
+/* Abas A / B / C */
+.montar-tabs {
+  display: flex; gap: 8px;
+  margin-bottom: 20px;
+}
+.montar-tab {
+  flex: 1; padding: 10px 0;
+  border-radius: var(--r); font-size: 14px; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text2); transition: all var(--dur) var(--ease);
+}
+.montar-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Card info do treino */
+.montar-info-card {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.montar-info-left { display: flex; align-items: center; gap: 16px; }
+.montar-tab-letra {
+  font-family: var(--font-d); font-size: 52px; line-height: 1;
+  color: var(--accent); min-width: 40px;
+}
+.montar-tab-nome  { font-weight: 600; font-size: 16px; }
+.montar-tab-count { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+.btn-salvar-treino {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--accent); color: #080a0d;
+  border-radius: var(--r); padding: 10px 16px;
+  font-size: 13px; font-weight: 700;
+  transition: all var(--dur) var(--ease);
+}
+.btn-salvar-treino:hover { background: #d6ff14; }
+
+/* Lista de exercícios do montar */
+.montar-ex-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+
+.montar-ex-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+}
+.montar-ex-num {
+  font-family: var(--font-d); font-size: 24px; color: var(--accent);
+  min-width: 40px; text-align: center;
+  background: var(--accent-dim); border-radius: var(--r-sm);
+  padding: 6px 4px;
+}
+.montar-ex-info { flex: 1; }
+.montar-ex-name  { font-weight: 600; font-size: 14px; }
+.montar-ex-meta  { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.montar-ex-del {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--red-dim); border: 1px solid rgba(255,59,92,.2);
+  color: var(--red); display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+  transition: all var(--dur) var(--ease);
+}
+.montar-ex-del:hover { background: var(--red); color: white; }
+
+/* Botão adicionar */
+.btn-add-ex {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 14px;
+  background: transparent; border: 2px dashed var(--border2);
+  border-radius: var(--r-lg); color: var(--text3);
+  font-size: 14px; font-weight: 600;
+  transition: all var(--dur) var(--ease);
+}
+.btn-add-ex:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Modal adicionar exercício */
+.modal-add-ex {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex; align-items: flex-end;
+  z-index: 3000;
+  animation: fadeIn .2s var(--ease);
+}
+.modal-add-ex-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  width: 100%;
+  animation: slideUp .28s var(--ease);
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.modal-add-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.modal-add-title { font-family: var(--font-d); font-size: 24px; letter-spacing: .02em; }
+.modal-add-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text2); font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur) var(--ease);
+}
+.modal-add-close:hover { background: var(--red-dim); color: var(--red); }
+
+.ou-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0; color: var(--text3); font-size: 12px;
+}
+.ou-divider::before, .ou-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+/* Tip card na tela montar quando vazio */
+.montar-tip {
+  background: var(--accent-dim); border: 1px solid rgba(201,255,0,.15);
+  border-radius: var(--r-lg); padding: 16px 20px;
+  margin-bottom: 16px;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.montar-tip-icon { font-size: 20px; flex-shrink: 0; }
+.montar-tip-text { font-size: 13px; color: var(--text2); line-height: 1.55; }
+.montar-tip-text strong { color: var(--accent); }
