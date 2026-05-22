@@ -1,5 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080a0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="GymOS — Gerencie seus treinos com inteligência." />
+  <title>GymOS</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="global-loader">
+  <div class="loader-content">
+    <div class="loader-logo">GYM<span>OS</span></div>
+    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- MODAL 30 TREINOS -->
+<div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-badge">⚡ ALERTA DE EVOLUÇÃO</div>
+    <h2 class="modal-title">Seu corpo pede novos estímulos.</h2>
+    <p class="modal-text">Você completou <strong>30 treinos</strong> com a mesma rotina. Para continuar evoluindo, renove sua programação.</p>
+    <div class="modal-counter">
+      <span class="modal-counter-num">30</span>
+      <span class="modal-counter-label">treinos realizados</span>
+    </div>
+    <button id="btn-zerar-contador" class="btn btn-accent btn-full">🔄 Zerar Contador e Continuar</button>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav id="bottom-nav" class="bottom-nav hidden">
+  <button class="nav-item active" data-tab="treino">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M18 4v16M6 12h12M2 7h4M18 7h4M2 17h4M18 17h4"/></svg>
+    Treino
+  </button>
+  <button class="nav-item" data-tab="montar">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Montar
+  </button>
+  <button class="nav-item" data-tab="aparelhos">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2M12 12v4M10 14h4"/></svg>
+    Aparelhos
+  </button>
+  <button class="nav-item" data-tab="historico">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Histórico
+  </button>
+  <button class="nav-item" data-tab="perfil">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Perfil
+  </button>
+</nav>
+
 <!-- ══════════════════════════════════════
-     TELA 5 — APARELHOS (MODIFICADA)
+     TELA 0 — LOGIN
+══════════════════════════════════════ -->
+<section id="screen-login" class="screen screen-login">
+  <div class="login-bg-grid"></div>
+  <div class="login-content">
+    <div class="login-top">
+      <div class="login-logo">GYM<em>OS</em></div>
+      <p class="login-tagline">Sua academia. Seus dados. Seu ritmo.</p>
+    </div>
+    <div class="login-card">
+      <div class="login-card-inner">
+        <h1 class="login-headline">Treinos que<br/><span class="accent-text">evoluem</span><br/>com você.</h1>
+        <p class="login-desc">Registre aparelhos, monte rotinas e acompanhe cada treino. Tudo sincronizado na nuvem, 100% seguro.</p>
+        <button id="btn-google-login" class="btn btn-google">
+          <span class="google-icon"></span>
+          Entrar com Google
+        </button>
+        <p class="login-terms">Seus dados são privados e protegidos pelo Firebase.</p>
+      </div>
+    </div>
+    <div class="login-features">
+      <div class="feat-item"><span>📍</span><span>Check-in GPS</span></div>
+      <div class="feat-item"><span>📊</span><span>Histórico</span></div>
+      <div class="feat-item"><span>🔒</span><span>100% privado</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 1 — CHECK-IN
+══════════════════════════════════════ -->
+<section id="screen-checkin" class="screen hidden">
+  <header class="app-header">
+    <div class="header-logo">GYM<em>OS</em></div>
+    <div class="user-chip">
+      <img id="user-avatar" src="" alt="Avatar" width="26" height="26" />
+      <span id="user-name">—</span>
+    </div>
+  </header>
+  <div class="checkin-greeting">
+    <p class="greeting-time" id="greeting-time">Bom dia</p>
+    <h2 class="greeting-name" id="greeting-name">Atleta</h2>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-treinos">0</div>
+      <div class="stat-label">Treinos<br/>realizados</div>
+      <div class="stat-progress"><div class="stat-progress-fill" id="stat-progress-fill" style="width:0%"></div></div>
+      <div class="stat-progress-label" id="stat-progress-label">0 / 30</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-ultima" style="font-size:26px;letter-spacing:.01em">—</div>
+      <div class="stat-label">Último<br/>treino</div>
+    </div>
+  </div>
+  <div class="checkin-hero">
+    <div class="checkin-ring"><div class="checkin-icon">📍</div></div>
+    <h3 class="checkin-title">Pronto para treinar?</h3>
+    <p class="checkin-sub">Confirme sua localização para fazer o check-in na academia.</p>
+  </div>
+  <button id="btn-checkin" class="btn btn-accent">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    Fazer Check-in
+  </button>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 2 — SELEÇÃO
+══════════════════════════════════════ -->
+<section id="screen-selecao" class="screen hidden">
+  <header class="app-header">
+    <div class="header-logo">GYM<em>OS</em></div>
+    <div class="checkin-badge">✓ Check-in</div>
+  </header>
+  <span class="screen-eyebrow">SELECIONE A ROTINA</span>
+  <h2 class="screen-title">Qual treino<br/>de hoje?</h2>
+  <div class="treino-list">
+    <div class="treino-card" data-tipo="A" tabindex="0" role="button">
+      <div class="treino-letter">A</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino A</div>
+        <div class="treino-desc" id="desc-treino-A">Carregando...</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+    <div class="treino-card" data-tipo="B" tabindex="0" role="button">
+      <div class="treino-letter">B</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino B</div>
+        <div class="treino-desc" id="desc-treino-B">Carregando...</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+    <div class="treino-card" data-tipo="C" tabindex="0" role="button">
+      <div class="treino-letter">C</div>
+      <div class="treino-info">
+        <div class="treino-name">Treino C</div>
+        <div class="treino-desc" id="desc-treino-C">Carregando...</div>
+      </div>
+      <svg class="treino-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 3 — EXECUÇÃO
+══════════════════════════════════════ -->
+<section id="screen-execucao" class="screen hidden">
+  <header class="exec-header">
+    <button class="back-btn" id="btn-voltar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div>
+      <p class="exec-eyebrow">EM EXECUÇÃO</p>
+      <h2 class="exec-title" id="exec-title">Treino A</h2>
+    </div>
+    <div class="exec-timer" id="exec-timer">00:00</div>
+  </header>
+
+  <div class="section-block">
+    <div class="block-header">
+      <span class="block-label">❤️ Cardio</span>
+      <span class="block-optional">Opcional</span>
+    </div>
+    <div class="cardio-row">
+      <div class="field-group">
+        <label class="field-label" for="cardio-aparelho">Aparelho</label>
+        <select id="cardio-aparelho">
+          <option value="esteira">🏃 Esteira</option>
+          <option value="bike">🚴 Bike Ergométrica</option>
+          <option value="eliptico">🌀 Elíptico</option>
+          <option value="remo">🚣 Remo Ergométrico</option>
+          <option value="escada">🪜 Escada Rolante</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="cardio-min">Min</label>
+        <input id="cardio-min" type="number" min="0" max="180" step="5" placeholder="30" class="input-minutes" inputmode="numeric" />
+      </div>
+    </div>
+  </div>
+
+  <div class="section-block">
+    <div class="block-header">
+      <span class="block-label">🏋️ Força</span>
+      <span id="ex-counter" class="block-count">0 exercícios</span>
+    </div>
+    <div id="exercicio-list" class="exercicio-list"></div>
+  </div>
+
+  <div class="exec-footer">
+    <button id="btn-finalizar" class="btn btn-accent btn-full">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      Finalizar Treino
+    </button>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 4 — MONTAR TREINOS
+══════════════════════════════════════ -->
+<section id="screen-montar" class="screen hidden">
+  <header class="app-header">
+    <h2 class="header-title">Montar Treinos</h2>
+  </header>
+
+  <!-- Abas A / B / C -->
+  <div class="montar-tabs">
+    <button class="montar-tab active" data-treino="A">Treino A</button>
+    <button class="montar-tab" data-treino="B">Treino B</button>
+    <button class="montar-tab" data-treino="C">Treino C</button>
+  </div>
+
+  <!-- Info do treino atual -->
+  <div class="montar-info-card">
+    <div class="montar-info-left">
+      <span class="montar-tab-letra" id="montar-letra">A</span>
+      <div>
+        <div class="montar-tab-nome" id="montar-nome-treino">Treino A</div>
+        <div class="montar-tab-count" id="montar-count">0 exercícios</div>
+      </div>
+    </div>
+    <button class="btn-salvar-treino" id="btn-salvar-treino">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Salvar
+    </button>
+  </div>
+
+  <!-- Lista de exercícios do treino -->
+  <div id="montar-exercicios-list" class="montar-ex-list"></div>
+
+  <!-- Botão adicionar exercício -->
+  <button class="btn-add-ex" id="btn-add-ex">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    Adicionar Exercício
+  </button>
+
+  <!-- Modal para adicionar exercício -->
+  <div id="modal-add-ex" class="modal-add-ex hidden">
+    <div class="modal-add-ex-box">
+      <div class="modal-add-header">
+        <h3 class="modal-add-title">Adicionar Exercício</h3>
+        <button class="modal-add-close" id="btn-close-add-ex">✕</button>
+      </div>
+
+      <!-- Selecionar aparelho cadastrado -->
+      <div class="form-field-group">
+        <label class="field-label">Selecionar Aparelho Cadastrado</label>
+        <select id="select-aparelho-ex">
+          <option value="">-- Escolha um aparelho --</option>
+        </select>
+      </div>
+
+      <!-- Ou digitar manualmente -->
+      <div class="ou-divider"><span>ou preencha manualmente</span></div>
+
+      <div class="form-field-group">
+        <label class="field-label" for="ex-nome">Nome do Exercício *</label>
+        <input id="ex-nome" type="text" placeholder="Ex: Supino Reto" autocomplete="off" />
+      </div>
+      <div class="form-row-2">
+        <div class="form-field-group">
+          <label class="field-label" for="ex-num">Nº Aparelho</label>
+          <input id="ex-num" type="text" placeholder="Ex: 14" autocomplete="off" />
+        </div>
+        <div class="form-field-group">
+          <label class="field-label" for="ex-series">Séries</label>
+          <input id="ex-series" type="number" placeholder="3" min="1" max="20" inputmode="numeric" />
+        </div>
+      </div>
+      <div class="form-field-group">
+        <label class="field-label" for="ex-reps">Repetições (meta)</label>
+        <input id="ex-reps" type="number" placeholder="12" min="1" max="100" inputmode="numeric" />
+      </div>
+
+      <button class="btn btn-accent btn-full" id="btn-confirmar-ex">
+        Adicionar ao Treino
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 5 — APARELHOS
 ══════════════════════════════════════ -->
 <section id="screen-aparelhos" class="screen hidden">
   <header class="app-header">
@@ -11,12 +317,8 @@
 
   <div id="form-aparelho-wrap" class="form-wrap hidden">
     <div class="form-card">
-      <h3 class="form-title" id="form-aparelho-title">Cadastrar Aparelho</h3>
+      <h3 class="form-title">Cadastrar Aparelho</h3>
       <form id="form-aparelho" novalidate>
-        
-        <!-- CAMPO OCULTO PARA CONTROLE DE EDIÇÃO -->
-        <input type="hidden" id="input-id-aparelho" value="" />
-
         <div class="form-field-group">
           <label class="field-label" for="input-nome-aparelho">Nome do Aparelho *</label>
           <input id="input-nome-aparelho" type="text" placeholder="Ex: Supino Reto" maxlength="60" required autocomplete="off" />
@@ -34,7 +336,7 @@
               <span class="upload-text" id="upload-text-label">Toque para <strong>fotografar</strong></span>
             </div>
           </label>
-          <img id="preview-foto" src="" alt="Preview" style="display:none; max-width:100%; height:auto; margin-top:10px; border-radius:8px;" />
+          <img id="preview-foto" src="" alt="Preview" />
           <div id="upload-progress-wrap" class="upload-progress hidden">
             <div class="progress-bar-track"><div class="progress-bar-fill" id="upload-bar" style="width:0%"></div></div>
             <span id="upload-percent" class="upload-pct">0%</span>
@@ -57,3 +359,47 @@
     <div id="aparelhos-grid" class="aparelhos-grid"></div>
   </div>
 </section>
+
+<!-- ══════════════════════════════════════
+     TELA 6 — HISTÓRICO
+══════════════════════════════════════ -->
+<section id="screen-historico" class="screen hidden">
+  <header class="app-header">
+    <h2 class="header-title">Histórico</h2>
+  </header>
+  <div id="historico-list" class="historico-list"></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     TELA 7 — PERFIL
+══════════════════════════════════════ -->
+<section id="screen-perfil" class="screen hidden">
+  <header class="app-header">
+    <h2 class="header-title">Perfil</h2>
+  </header>
+  <div class="perfil-card">
+    <img id="perfil-avatar" src="" alt="Foto de perfil" class="perfil-avatar" />
+    <h3 class="perfil-name" id="perfil-name">—</h3>
+    <p class="perfil-email" id="perfil-email">—</p>
+  </div>
+  <div class="perfil-stats-grid">
+    <div class="perfil-stat">
+      <span class="perfil-stat-val" id="perfil-total-treinos">0</span>
+      <span class="perfil-stat-label">Treinos realizados</span>
+    </div>
+    <div class="perfil-stat">
+      <span class="perfil-stat-val" id="perfil-total-aparelhos">0</span>
+      <span class="perfil-stat-label">Aparelhos cadastrados</span>
+    </div>
+  </div>
+  <div class="perfil-actions">
+    <button id="btn-logout" class="btn btn-danger-outline">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      Sair da Conta
+    </button>
+  </div>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
