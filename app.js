@@ -1,828 +1,267 @@
-// ═══════════════════════════════════════════════════════════
-// app.js — GymOS PWA v2
-// Firebase SDK v10 Modular | Vanilla JS ES6+
-// ═══════════════════════════════════════════════════════════
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  where 
+} from "https://www.gstatic.com/firebasejs/9.x.x/firebase-firestore.js";
 
-import { auth, db, storage } from './firebase-config.js';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytesResumable, 
+  getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/9.x.x/firebase-storage.js";
 
-import {
-  GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+// --- Referências do DOM ---
+const btnToggleForm = document.getElementById('btn-toggle-form');
+const formAparelhoWrap = document.getElementById('form-aparelho-wrap');
+const formAparelho = document.getElementById('form-aparelho');
+const formAparelhoTitle = document.getElementById('form-aparelho-title');
+const submitLabel = document.getElementById('submit-label');
+const btnCancelForm = document.getElementById('btn-cancel-form');
 
-import {
-  doc, getDoc, setDoc, addDoc, getDocs, collection,
-  query, where, updateDoc, increment, serverTimestamp,
-  orderBy, limit, deleteDoc
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+const inputIdAparelho = document.getElementById('input-id-aparelho');
+const inputNomeAparelho = document.getElementById('input-nome-aparelho');
+const inputNumAparelho = document.getElementById('input-num-aparelho');
+const inputFotoAparelho = document.getElementById('foto-aparelho');
+const previewFoto = document.getElementById('preview-foto');
 
-import {
-  ref as sRef, uploadBytesResumable, getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+const uploadProgressWrap = document.getElementById('upload-progress-wrap');
+const uploadBar = document.getElementById('upload-bar');
+const uploadPercent = document.getElementById('upload-percent');
+const aparelhosGrid = document.getElementById('aparelhos-grid');
+const aparelhosSearch = document.getElementById('aparelhos-search');
 
-// ═══════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════
-const S = {
-  user:           null,
-  userData:       null,
-  tipoSel:        null,
-  treinoAtual:    null,
-  aparelhos:      [],
-  checkinOk:      false,
-  activeTab:      'treino',
-  timerInterval:  null,
-  timerSecs:      0,
-  // Montar treinos
-  montarTipoAtual: 'A',
-  montarExercicios: { A: [], B: [], C: [] },
-  montarDocIds:     { A: null, B: null, C: null },
-};
+// --- Estado da Aplicação ---
+let listaAparelhosLocal = [];
+let urlFotoSelecionada = ""; 
+// const userId = firebase.auth().currentUser.uid; // Certifique-se de obter o UID do usuário ativo
 
-// ═══════════════════════════════════════════════════════════
-// DOM
-// ═══════════════════════════════════════════════════════════
-const $  = id => document.getElementById(id);
-const $$ = sel => document.querySelectorAll(sel);
-
-const SCREENS = ['login','checkin','selecao','execucao','montar','aparelhos','historico','perfil'];
-
-function showScreen(name) {
-  SCREENS.forEach(n => {
-    const el = $(`screen-${n}`);
-    if (el) el.classList.toggle('hidden', n !== name);
-  });
-  $('bottom-nav').classList.toggle('hidden', name === 'login');
-  $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === S.activeTab));
+// --- Funções Auxiliares de Interface ---
+function exibirToast(mensagem) {
+  const toast = document.getElementById('toast');
+  toast.textContent = mensagem;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-let toastTimer;
-function toast(msg, type = 'success') {
-  const el = $('toast');
-  el.textContent = msg;
-  el.className = `toast toast-${type} visible`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('visible'), 3200);
+function abrirFormulario() {
+  formAparelhoWrap.classList.remove('hidden');
 }
 
-function showLoader() { $('global-loader').classList.remove('hidden'); }
-function hideLoader() { $('global-loader').classList.add('hidden'); }
-
-function greetingText() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Bom dia';
-  if (h < 18) return 'Boa tarde';
-  return 'Boa noite';
+function fecharEResetarFormulario() {
+  formAparelhoWrap.classList.add('hidden');
+  formAparelho.reset();
+  inputIdAparelho.value = "";
+  urlFotoSelecionada = "";
+  previewFoto.src = "";
+  previewFoto.style.display = "none";
+  formAparelhoTitle.textContent = "Cadastrar Aparelho";
+  submitLabel.textContent = "Salvar Aparelho";
+  uploadProgressWrap.classList.add('hidden');
 }
 
-function fmtDate(ts) {
-  if (!ts) return '—';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
-}
-
-const FALLBACK_IMG = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect fill="#1b1f2c" width="64" height="64"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="28" fill="#c9ff00">🏋️</text></svg>')}`;
-
-// ═══════════════════════════════════════════════════════════
-// TIMER
-// ═══════════════════════════════════════════════════════════
-function startTimer() {
-  S.timerSecs = 0;
-  clearInterval(S.timerInterval);
-  S.timerInterval = setInterval(() => {
-    S.timerSecs++;
-    const m = String(Math.floor(S.timerSecs / 60)).padStart(2,'0');
-    const s = String(S.timerSecs % 60).padStart(2,'0');
-    const el = $('exec-timer');
-    if (el) el.textContent = `${m}:${s}`;
-  }, 1000);
-}
-function stopTimer() { clearInterval(S.timerInterval); }
-
-// ═══════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════
-$('btn-google-login').addEventListener('click', async () => {
-  try {
-    showLoader();
-    await signInWithPopup(auth, new GoogleAuthProvider());
-  } catch (err) {
-    hideLoader();
-    console.error('Login:', err);
-    toast('Erro ao fazer login: ' + err.message, 'error');
-  }
-});
-
-$('btn-logout').addEventListener('click', async () => {
-  try { await signOut(auth); } catch (err) { console.error(err); }
-});
-
-onAuthStateChanged(auth, async user => {
-  if (user) {
-    S.user = user;
-    showLoader();
-    try { await initApp(); } catch(e) {
-      console.error(e);
-      toast('Erro ao inicializar: ' + e.message, 'error');
-      hideLoader();
-    }
-  } else {
-    S.user = null; S.userData = null;
-    showScreen('login');
-    hideLoader();
-  }
-});
-
-// ═══════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════
-async function initApp() {
-  const uid   = S.user.uid;
-  const name  = (S.user.displayName || 'Atleta').split(' ')[0];
-  const photo = S.user.photoURL || '';
-
-  ['user-avatar','perfil-avatar'].forEach(id => {
-    const el = $(id);
-    if (el) { el.src = photo; el.onerror = () => el.style.display='none'; }
-  });
-  $('user-name').textContent   = name;
-  $('greeting-name').textContent = name;
-  $('greeting-time').textContent = greetingText();
-  $('perfil-name').textContent   = S.user.displayName || 'Atleta';
-  $('perfil-email').textContent  = S.user.email || '';
-
-  // Documento do usuário
-  const uRef = doc(db, 'usuarios', uid);
-  const snap = await getDoc(uRef);
-  if (!snap.exists()) {
-    await setDoc(uRef, { usuario_id: uid, contador_treinos: 0 });
-    S.userData = { usuario_id: uid, contador_treinos: 0 };
-  } else {
-    S.userData = snap.data();
-  }
-
-  const ct  = S.userData.contador_treinos ?? 0;
-  const pct = Math.min((ct / 30) * 100, 100);
-  $('stat-treinos').textContent        = ct;
-  $('stat-progress-fill').style.width  = pct + '%';
-  $('stat-progress-label').textContent = `${ct} / 30`;
-  $('perfil-total-treinos').textContent = ct;
-
-  // Último treino
-  try {
-    const hq   = query(collection(db,'historico_treinos'), where('usuario_id','==',uid), orderBy('data','desc'), limit(1));
-    const hsnap = await getDocs(hq);
-    if (!hsnap.empty) $('stat-ultima').textContent = fmtDate(hsnap.docs[0].data().data);
-  } catch(_) {}
-
-  // Carregar aparelhos em background
-  carregarAparelhos();
-
-  // Carregar descrições dos treinos base
-  carregarDescricoesTreinos();
-
-  if (ct >= 30) { showModal30(); hideLoader(); return; }
-
-  S.activeTab = 'treino';
-  showScreen('checkin');
-  hideLoader();
-}
-
-// ═══════════════════════════════════════════════════════════
-// MODAL 30 TREINOS
-// ═══════════════════════════════════════════════════════════
-function showModal30() {
-  $('modal-overlay').classList.remove('hidden');
-  SCREENS.forEach(n => { const el=$(`screen-${n}`); if(el) el.classList.add('hidden'); });
-  $('bottom-nav').classList.add('hidden');
-}
-
-$('btn-zerar-contador').addEventListener('click', async () => {
-  try {
-    showLoader();
-    await updateDoc(doc(db,'usuarios',S.user.uid), { contador_treinos: 0 });
-    S.userData.contador_treinos = 0;
-    $('stat-treinos').textContent        = 0;
-    $('stat-progress-fill').style.width  = '0%';
-    $('stat-progress-label').textContent = '0 / 30';
-    $('modal-overlay').classList.add('hidden');
-    hideLoader();
-    toast('Contador zerado! Hora de novos estímulos 💪');
-    S.activeTab = 'treino';
-    showScreen('checkin');
-  } catch(err) {
-    hideLoader();
-    console.error(err);
-    toast('Erro ao zerar contador.', 'error');
-  }
-});
-
-// ═══════════════════════════════════════════════════════════
-// TELA 1 — CHECK-IN
-// ═══════════════════════════════════════════════════════════
-$('btn-checkin').addEventListener('click', () => {
-  if (!navigator.geolocation) {
-    toast('Geolocalização indisponível.', 'error');
-    return;
-  }
-  const btn = $('btn-checkin');
-  btn.disabled = true;
-  btn.innerHTML = `<span>📍</span> Localizando...`;
-
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      S.checkinOk = true;
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Fazer Check-in`;
-      toast(`✅ Check-in confirmado! ±${Math.round(pos.coords.accuracy)}m`);
-      S.activeTab = 'treino';
-      showScreen('selecao');
-    },
-    err => {
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Fazer Check-in`;
-      const msgs = { 1:'Permissão negada. Ative o GPS.', 2:'Posição indisponível.', 3:'Tempo esgotado.' };
-      const msg = msgs[err.code] || 'Erro de geolocalização.';
-      console.error('Geo:', err);
-      toast(msg, 'error');
-      alert(msg);
-    },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-  );
-});
-
-// ═══════════════════════════════════════════════════════════
-// TELA 2 — SELEÇÃO
-// ═══════════════════════════════════════════════════════════
-async function carregarDescricoesTreinos() {
-  try {
-    const uid  = S.user.uid;
-    const snap = await getDocs(query(collection(db,'treinos_base'), where('usuario_id','==',uid)));
-    ['A','B','C'].forEach(t => {
-      const el = $(`desc-treino-${t}`);
-      if (!el) return;
-      const d = snap.docs.find(d => d.data().nome === `Treino ${t}`);
-      if (d) {
-        const exs = d.data().exercicios || [];
-        el.textContent = exs.length > 0
-          ? `${exs.length} exercício${exs.length>1?'s':''} cadastrado${exs.length>1?'s':''}`
-          : 'Sem exercícios — toque para adicionar';
-      } else {
-        el.textContent = 'Sem exercícios — toque para adicionar';
-      }
-    });
-  } catch(e) {
-    console.error('desc treinos:', e);
-  }
-}
-
-$$('.treino-card').forEach(card => {
-  card.addEventListener('click', () => selecionarTreino(card.dataset.tipo));
-  card.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') selecionarTreino(card.dataset.tipo); });
-});
-
-async function selecionarTreino(tipo) {
-  S.tipoSel = tipo;
-  showLoader();
-  try {
-    const uid  = S.user.uid;
-    const snap = await getDocs(query(
-      collection(db,'treinos_base'),
-      where('usuario_id','==',uid),
-      where('nome','==',`Treino ${tipo}`)
-    ));
-    S.treinoAtual = snap.empty
-      ? { nome: `Treino ${tipo}`, exercicios: [] }
-      : snap.docs[0].data();
-
-    renderExecucao();
-    startTimer();
-    S.activeTab = 'treino';
-    showScreen('execucao');
-  } catch(err) {
-    console.error(err);
-    toast('Erro ao carregar treino.', 'error');
-  }
-  hideLoader();
-}
-
-// ═══════════════════════════════════════════════════════════
-// TELA 3 — EXECUÇÃO
-// ═══════════════════════════════════════════════════════════
-function renderExecucao() {
-  $('exec-title').textContent = `Treino ${S.tipoSel}`;
-  const list = $('exercicio-list');
-  list.innerHTML = '';
-  const exs = S.treinoAtual?.exercicios || [];
-  $('ex-counter').textContent = `${exs.length} exercício${exs.length!==1?'s':''}`;
-
-  if (!exs.length) {
-    list.innerHTML = `<div class="empty-state">
-      <span class="empty-icon">📋</span>
-      <p class="empty-title">Treino vazio</p>
-      <p class="empty-text">Monte esse treino na aba <strong style="color:var(--accent)">Montar</strong> antes de executar.</p>
-    </div>`;
-    return;
-  }
-
-  exs.forEach((ex, i) => {
-    const card = document.createElement('div');
-    card.className = 'exercicio-card';
-    card.dataset.index = i;
-    card.innerHTML = `
-      <div class="ex-top">
-        <img class="ex-thumb" src="${ex.url_foto || FALLBACK_IMG}" alt="${ex.nome}" onerror="this.src='${FALLBACK_IMG}'">
-        <div class="ex-num-badge"><span class="ex-num">${ex.numero_aparelho || '—'}</span></div>
-        <div class="ex-info">
-          <div class="ex-name">${ex.nome}</div>
-          <div class="ex-meta">${ex.series_meta||3}x${ex.reps_meta||12} reps · meta</div>
-        </div>
-      </div>
-      <div class="ex-inputs">
-        <div class="ex-input-cell">
-          <span class="field-label">Carga (kg)</span>
-          <input type="number" class="input-carga" placeholder="0" min="0" step="0.5" inputmode="decimal">
-        </div>
-        <div class="ex-input-cell">
-          <span class="field-label">Reps realizadas</span>
-          <input type="number" class="input-reps" placeholder="${ex.reps_meta||12}" min="0" inputmode="numeric">
-        </div>
-      </div>`;
-    list.appendChild(card);
-  });
-}
-
-$('btn-voltar').addEventListener('click', () => {
-  stopTimer();
-  S.activeTab = 'treino';
-  showScreen('selecao');
-});
-
-$('btn-finalizar').addEventListener('click', finalizarTreino);
-
-async function finalizarTreino() {
-  stopTimer();
-  const uid       = S.user.uid;
-  const cardioAp  = $('cardio-aparelho').value;
-  const cardioMin = parseInt($('cardio-min').value) || 0;
-  const forca     = [];
-
-  $$('.exercicio-card').forEach(card => {
-    const i  = parseInt(card.dataset.index);
-    const ex = S.treinoAtual.exercicios[i];
-    forca.push({
-      nome_aparelho:   ex.nome,
-      numero_aparelho: ex.numero_aparelho || '',
-      series:          ex.series_meta || 3,
-      reps:            parseInt(card.querySelector('.input-reps').value) || 0,
-      carga:           parseFloat(card.querySelector('.input-carga').value) || 0,
-    });
-  });
-
-  showLoader();
-  try {
-    await addDoc(collection(db,'historico_treinos'), {
-      usuario_id:  uid,
-      data:        serverTimestamp(),
-      tipo_treino: `Treino ${S.tipoSel}`,
-      cardio:      { aparelho: cardioAp, minutos: cardioMin },
-      forca,
-    });
-    await updateDoc(doc(db,'usuarios',uid), { contador_treinos: increment(1) });
-    S.userData.contador_treinos = (S.userData.contador_treinos ?? 0) + 1;
-
-    const ct  = S.userData.contador_treinos;
-    const pct = Math.min((ct/30)*100, 100);
-    $('stat-treinos').textContent        = ct;
-    $('stat-progress-fill').style.width  = pct + '%';
-    $('stat-progress-label').textContent = `${ct} / 30`;
-    $('perfil-total-treinos').textContent = ct;
-
-    hideLoader();
-    toast('🎉 Treino finalizado e salvo!');
-
-    if (ct >= 30) {
-      setTimeout(showModal30, 900);
-    } else {
-      setTimeout(() => { S.activeTab='treino'; showScreen('checkin'); }, 1400);
-    }
-  } catch(err) {
-    hideLoader();
-    console.error('finalizar:', err);
-    toast('Erro ao salvar: ' + err.message, 'error');
-    alert('Erro ao salvar treino:\n' + err.message);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// TELA 4 — MONTAR TREINOS
-// ═══════════════════════════════════════════════════════════
-
-// Abas
-$$('.montar-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('.montar-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    S.montarTipoAtual = btn.dataset.treino;
-    renderMontarLista();
-  });
-});
-
-async function carregarMontarTreinos() {
-  try {
-    const uid  = S.user.uid;
-    const snap = await getDocs(query(collection(db,'treinos_base'), where('usuario_id','==',uid)));
-    ['A','B','C'].forEach(t => {
-      const d = snap.docs.find(d => d.data().nome === `Treino ${t}`);
-      if (d) {
-        S.montarExercicios[t] = d.data().exercicios || [];
-        S.montarDocIds[t]     = d.id;
-      } else {
-        S.montarExercicios[t] = [];
-        S.montarDocIds[t]     = null;
-      }
-    });
-    renderMontarLista();
-  } catch(err) {
-    console.error('carregarMontarTreinos:', err);
-    toast('Erro ao carregar treinos.', 'error');
-  }
-}
-
-function renderMontarLista() {
-  const t    = S.montarTipoAtual;
-  const exs  = S.montarExercicios[t] || [];
-  const list = $('montar-exercicios-list');
-
-  $('montar-letra').textContent      = t;
-  $('montar-nome-treino').textContent = `Treino ${t}`;
-  $('montar-count').textContent       = `${exs.length} exercício${exs.length!==1?'s':''}`;
-  list.innerHTML = '';
-
-  if (!exs.length) {
-    list.innerHTML = `<div class="montar-tip">
-      <span class="montar-tip-icon">💡</span>
-      <span class="montar-tip-text">
-        Nenhum exercício ainda. Toque em <strong>"Adicionar Exercício"</strong> abaixo
-        para montar o <strong>Treino ${t}</strong>.
-        Você pode selecionar aparelhos já cadastrados ou preencher manualmente.
-      </span>
-    </div>`;
-    return;
-  }
-
-  exs.forEach((ex, i) => {
-    const item = document.createElement('div');
-    item.className = 'montar-ex-item';
-    item.innerHTML = `
-      <div class="montar-ex-num">${ex.numero_aparelho || '—'}</div>
-      <div class="montar-ex-info">
-        <div class="montar-ex-name">${ex.nome}</div>
-        <div class="montar-ex-meta">${ex.series_meta||3} séries × ${ex.reps_meta||12} reps</div>
-      </div>
-      <button class="montar-ex-del" data-index="${i}" title="Remover">✕</button>`;
-    list.appendChild(item);
-  });
-
-  // Botões de remover
-  list.querySelectorAll('.montar-ex-del').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.index);
-      S.montarExercicios[S.montarTipoAtual].splice(idx, 1);
-      renderMontarLista();
-      toast('Exercício removido.', 'info');
-    });
-  });
-}
-
-// Salvar treino no Firestore
-$('btn-salvar-treino').addEventListener('click', async () => {
-  const t   = S.montarTipoAtual;
-  const exs = S.montarExercicios[t];
-  const uid = S.user.uid;
-
-  showLoader();
-  try {
-    const data = {
-      usuario_id:  uid,
-      nome:        `Treino ${t}`,
-      exercicios:  exs,
+// --- Preview de Imagem Local ---
+inputFotoAparelho.addEventListener('change', (e) => {
+  const file = e.target.getFiles ? e.target.getFiles()[0] : e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      previewFoto.src = event.target.result;
+      previewFoto.style.display = "block";
     };
-
-    if (S.montarDocIds[t]) {
-      await updateDoc(doc(db,'treinos_base',S.montarDocIds[t]), data);
-    } else {
-      const ref = await addDoc(collection(db,'treinos_base'), data);
-      S.montarDocIds[t] = ref.id;
-    }
-
-    hideLoader();
-    toast(`✅ Treino ${t} salvo com sucesso!`);
-    carregarDescricoesTreinos();
-  } catch(err) {
-    hideLoader();
-    console.error('salvar treino:', err);
-    toast('Erro ao salvar treino: ' + err.message, 'error');
-    alert('Erro:\n' + err.message);
+    reader.readAsDataURL(file);
   }
 });
 
-// Abrir modal adicionar exercício
-$('btn-add-ex').addEventListener('click', () => {
-  popularSelectAparelhos();
-  limparFormEx();
-  $('modal-add-ex').classList.remove('hidden');
-});
-
-$('btn-close-add-ex').addEventListener('click', () => {
-  $('modal-add-ex').classList.add('hidden');
-});
-
-// Fechar modal clicando fora
-$('modal-add-ex').addEventListener('click', e => {
-  if (e.target === $('modal-add-ex')) $('modal-add-ex').classList.add('hidden');
-});
-
-// Selecionar aparelho preenche campos
-$('select-aparelho-ex').addEventListener('change', e => {
-  const val = e.target.value;
-  if (!val) return;
-  const ap = S.aparelhos.find(a => a.id === val);
-  if (!ap) return;
-  $('ex-nome').value = ap.nome;
-  $('ex-num').value  = ap.numero_aparelho;
-});
-
-function popularSelectAparelhos() {
-  const sel = $('select-aparelho-ex');
-  sel.innerHTML = '<option value="">-- Escolha um aparelho --</option>';
-  S.aparelhos.forEach(ap => {
-    const opt = document.createElement('option');
-    opt.value       = ap.id;
-    opt.textContent = `#${ap.numero_aparelho} · ${ap.nome}`;
-    sel.appendChild(opt);
-  });
-}
-
-function limparFormEx() {
-  $('select-aparelho-ex').value = '';
-  $('ex-nome').value   = '';
-  $('ex-num').value    = '';
-  $('ex-series').value = '';
-  $('ex-reps').value   = '';
-}
-
-$('btn-confirmar-ex').addEventListener('click', () => {
-  const nome   = $('ex-nome').value.trim();
-  const num    = $('ex-num').value.trim();
-  const series = parseInt($('ex-series').value) || 3;
-  const reps   = parseInt($('ex-reps').value) || 12;
-
-  if (!nome) { toast('Digite o nome do exercício.', 'error'); return; }
-
-  // Pega url_foto do aparelho selecionado se houver
-  const selVal = $('select-aparelho-ex').value;
-  const ap     = S.aparelhos.find(a => a.id === selVal);
-  const url_foto = ap?.url_foto || '';
-
-  S.montarExercicios[S.montarTipoAtual].push({
-    aparelho_id:     selVal || '',
-    nome,
-    numero_aparelho: num,
-    url_foto,
-    series_meta:     series,
-    reps_meta:       reps,
-  });
-
-  $('modal-add-ex').classList.add('hidden');
-  renderMontarLista();
-  toast(`"${nome}" adicionado ao Treino ${S.montarTipoAtual} 💪`);
-});
-
-// ═══════════════════════════════════════════════════════════
-// TELA 5 — APARELHOS
-// ═══════════════════════════════════════════════════════════
-let formOpen = false;
-
-$('btn-toggle-form').addEventListener('click', () => {
-  formOpen = !formOpen;
-  $('form-aparelho-wrap').classList.toggle('hidden', !formOpen);
-  $('btn-toggle-form').classList.toggle('open', formOpen);
-});
-
-$('btn-cancel-form').addEventListener('click', () => {
-  formOpen = false;
-  $('form-aparelho-wrap').classList.add('hidden');
-  $('btn-toggle-form').classList.remove('open');
-  $('form-aparelho').reset();
-  $('preview-foto').style.display = 'none';
-  $('upload-icon-label').textContent = '📷';
-  $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong>';
-  $('upload-progress-wrap').classList.add('hidden');
-});
-
-$('foto-aparelho').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const prev = $('preview-foto');
-  prev.src = URL.createObjectURL(file);
-  prev.style.display = 'block';
-  $('upload-icon-label').textContent = '✅';
-  $('upload-text-label').innerHTML = `<strong>${file.name}</strong>`;
-});
-
-$('form-aparelho').addEventListener('submit', async e => {
-  e.preventDefault();
-  const nome   = $('input-nome-aparelho').value.trim();
-  const numero = $('input-num-aparelho').value.trim();
-  const file   = $('foto-aparelho').files[0];
-  if (!nome || !numero) { toast('Preencha nome e número.', 'error'); return; }
-
-  const btn = $('btn-submit-aparelho');
-  btn.disabled = true;
-  $('submit-label').textContent = 'Salvando...';
-  showLoader();
-
-  try {
-    const uid = S.user.uid;
-    let url_foto = '';
-    if (file) url_foto = await uploadFoto(file, uid);
-
-    await addDoc(collection(db,'aparelhos'), { usuario_id:uid, nome, numero_aparelho:numero, url_foto });
-
-    $('form-aparelho').reset();
-    $('preview-foto').style.display = 'none';
-    $('upload-icon-label').textContent = '📷';
-    $('upload-text-label').innerHTML = 'Toque para <strong>fotografar</strong>';
-    $('upload-progress-wrap').classList.add('hidden');
-    formOpen = false;
-    $('form-aparelho-wrap').classList.add('hidden');
-    $('btn-toggle-form').classList.remove('open');
-
-    toast('Aparelho cadastrado! ✅');
-    await carregarAparelhos();
-  } catch(err) {
-    console.error('aparelho:', err);
-    toast('Erro ao cadastrar: ' + err.message, 'error');
-    alert('Erro:\n' + err.message);
-  } finally {
-    btn.disabled = false;
-    $('submit-label').textContent = 'Salvar Aparelho';
-    hideLoader();
+// --- Controle de Visibilidade do Formulário ---
+btnToggleForm.addEventListener('click', () => {
+  if (formAparelhoWrap.classList.contains('hidden')) {
+    abrirFormulario();
+  } else {
+    fecharEResetarFormulario();
   }
 });
 
-function uploadFoto(file, uid) {
+btnCancelForm.addEventListener('click', fecharEResetarFormulario);
+
+// --- Renderização dos Aparelhos com Botão de Edição ---
+function renderizarAparelhos(aparelhos) {
+  aparelhosGrid.innerHTML = "";
+  
+  if (aparelhos.length === 0) {
+    aparelhosGrid.innerHTML = `<p class="empty-msg">Nenhum aparelho encontrado.</p>`;
+    return;
+  }
+
+  aparelhos.forEach(aparelho => {
+    const card = document.createElement('div');
+    card.className = 'aparelho-card';
+    
+    // Fallback caso o aparelho não possua foto cadastrada
+    const imagemSrc = aparelho.fotoUrl ? aparelho.fotoUrl : 'assets/default-equipment.png';
+
+    card.innerHTML = `
+      <div class="aparelho-img-container">
+        <img src="${imagemSrc}" alt="${aparelho.nome}" class="aparelho-img" />
+        <span class="aparelho-badge">Nº ${aparelho.numero}</span>
+      </div>
+      <div class="aparelho-info">
+        <h4 class="aparelho-name">${aparelho.nome}</h4>
+        <button class="btn-edit-aparelho" data-id="${aparelho.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Editar
+        </button>
+      </div>
+    `;
+    
+    // Evento de clique para o botão Editar gerado dinamicamente
+    card.querySelector('.btn-edit-aparelho').addEventListener('click', (e) => {
+      e.stopPropagation();
+      prepararEdicao(aparelho.id);
+    });
+
+    aparelhosGrid.appendChild(card);
+  });
+}
+
+// --- Preparação dos dados para Edição ---
+function prepararEdicao(id) {
+  const aparelho = listaAparelhosLocal.find(item => item.id === id);
+  if (!aparelho) return;
+
+  // Popula o formulário com dados existentes
+  inputIdAparelho.value = aparelho.id;
+  inputNomeAparelho.value = aparelho.nome;
+  inputNumAparelho.value = aparelho.numero;
+  
+  if (aparelho.fotoUrl) {
+    urlFotoSelecionada = aparelho.fotoUrl;
+    previewFoto.src = aparelho.fotoUrl;
+    previewFoto.style.display = "block";
+  } else {
+    previewFoto.style.display = "none";
+  }
+
+  // Modifica os textos da interface para contexto de modificação
+  formAparelhoTitle.textContent = "Alterar Aparelho";
+  submitLabel.textContent = "Atualizar Dados";
+  
+  abrirFormulario();
+  formAparelhoWrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+// --- Upload de Arquivo para o Firebase Storage ---
+function executarUploadFoto(file) {
   return new Promise((resolve, reject) => {
-    const name  = `${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`;
-    const ref   = sRef(storage, `aparelhos/${uid}/${name}`);
-    const task  = uploadBytesResumable(ref, file);
-    const wrap  = $('upload-progress-wrap');
-    const bar   = $('upload-bar');
-    const pctEl = $('upload-percent');
-    wrap.classList.remove('hidden');
+    const storage = getStorage();
+    const nomeArquivo = `${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, `users/${userId}/aparelhos/${nomeArquivo}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-    task.on('state_changed',
-      snap => {
-        const p = Math.round((snap.bytesTransferred/snap.totalBytes)*100);
-        bar.style.width   = p + '%';
-        pctEl.textContent = p + '%';
-      },
-      err  => { console.error('upload:', err); reject(err); },
-      async () => { resolve(await getDownloadURL(task.snapshot.ref)); }
+    uploadProgressWrap.classList.remove('hidden');
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progresso = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        uploadBar.style.width = `${progresso}%`;
+        uploadPercent.textContent = `${Math.round(progresso)}%`;
+      }, 
+      (error) => {
+        exibirToast("Erro no envio da imagem.");
+        reject(error);
+      }, 
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        resolve(downloadURL);
+      }
     );
   });
 }
 
-async function carregarAparelhos() {
-  try {
-    const uid  = S.user.uid;
-    const snap = await getDocs(query(collection(db,'aparelhos'), where('usuario_id','==',uid)));
-    S.aparelhos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    $('perfil-total-aparelhos').textContent = S.aparelhos.length;
-    renderAparelhos(S.aparelhos);
-  } catch(err) { console.error('carregarAparelhos:', err); }
-}
+// --- Envio do Formulário (Salvar / Alterar) ---
+formAparelho.addEventListener('submit', async (e) => {
+  e.preventDefault();
 
-function renderAparelhos(list) {
-  const grid = $('aparelhos-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  if (!list.length) {
-    grid.innerHTML = `<div class="empty-state">
-      <span class="empty-icon">🏋️</span>
-      <p class="empty-title">Sem aparelhos</p>
-      <p class="empty-text">Cadastre o primeiro aparelho usando o botão + acima.</p>
-    </div>`;
+  const nome = inputNomeAparelho.value.trim();
+  const numero = inputNumAparelho.value.trim();
+  const idAparelho = inputIdAparelho.value;
+
+  if (!nome || !numero) {
+    exibirToast("Por favor, preencha os campos obrigatórios (*)");
     return;
   }
-  list.forEach(ap => {
-    const item = document.createElement('div');
-    item.className = 'aparelho-item';
-    item.innerHTML = `
-      <img class="aparelho-img" src="${ap.url_foto || FALLBACK_IMG}" alt="${ap.nome}" onerror="this.src='${FALLBACK_IMG}'">
-      <div class="aparelho-info">
-        <div class="aparelho-num">#${ap.numero_aparelho}</div>
-        <div class="aparelho-nome">${ap.nome}</div>
-      </div>`;
-    grid.appendChild(item);
-  });
-}
 
-$('aparelhos-search').addEventListener('input', e => {
-  const q = e.target.value.toLowerCase();
-  renderAparelhos(S.aparelhos.filter(a =>
-    a.nome.toLowerCase().includes(q) || a.numero_aparelho.toLowerCase().includes(q)
-  ));
-});
-
-// ═══════════════════════════════════════════════════════════
-// TELA 6 — HISTÓRICO
-// ═══════════════════════════════════════════════════════════
-async function carregarHistorico() {
-  const list = $('historico-list');
-  list.innerHTML = '<p style="color:var(--text3);font-size:14px;padding:20px 0">Carregando...</p>';
   try {
-    const uid  = S.user.uid;
-    // Busca sem orderBy para evitar necessidade de índice composto
-    // Ordena localmente depois
-    const snap = await getDocs(query(
-      collection(db,'historico_treinos'),
-      where('usuario_id','==',uid),
-      limit(50)
-    ));
-    // Ordena localmente por data decrescente
-    const docs = snap.docs.sort((a,b) => {
-      const ta = a.data().data?.toMillis?.() || 0;
-      const tb = b.data().data?.toMillis?.() || 0;
-      return tb - ta;
-    }).slice(0,30);
+    document.getElementById('btn-submit-aparelho').disabled = true;
+    let fotoUrlFinal = urlFotoSelecionada;
 
-    if (snap.empty) {
-      list.innerHTML = `<div class="empty-state">
-        <span class="empty-icon">📊</span>
-        <p class="empty-title">Sem histórico</p>
-        <p class="empty-text">Complete seu primeiro treino para ver o histórico aqui.</p>
-      </div>`;
-      return;
+    // Se o usuário selecionou um arquivo de imagem novo
+    const file = inputFotoAparelho.files[0];
+    if (file) {
+      fotoUrlFinal = await executarUploadFoto(file);
     }
-    list.innerHTML = '';
-    docs.forEach(d => {
-      const h    = d.data();
-      const card = document.createElement('div');
-      card.className = 'historico-card';
-      const tags = [];
-      if (h.cardio?.minutos > 0)
-        tags.push(`<span class="h-tag cardio">❤️ ${h.cardio.aparelho} · ${h.cardio.minutos}min</span>`);
-      (h.forca||[]).forEach(ex => {
-        if (ex.carga > 0 || ex.reps > 0)
-          tags.push(`<span class="h-tag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps}</span>`);
-      });
-      card.innerHTML = `
-        <div class="historico-header">
-          <span class="historico-tipo">${h.tipo_treino}</span>
-          <span class="historico-data">${fmtDate(h.data)}</span>
-        </div>
-        <div class="historico-tags">${tags.join('')||'<span class="h-tag">Sem detalhes registrados</span>'}</div>`;
-      list.appendChild(card);
-    });
-  } catch(err) {
-    console.error('historico:', err);
-    list.innerHTML = `<p style="color:var(--red);font-size:14px;padding:20px 0">Erro ao carregar. Verifique as regras do Firestore.</p>`;
+
+    const payload = {
+      nome: nome,
+      numero: numero,
+      fotoUrl: fotoUrlFinal,
+      userId: userId,
+      updatedAt: new Date()
+    };
+
+    const db = getFirestore();
+
+    if (idAparelho) {
+      // MODO EDIÇÃO: Atualiza o documento existente
+      const docRef = doc(db, "aparelhos", idAparelho);
+      await updateDoc(docRef, payload);
+      exibirToast("Aparelho atualizado com sucesso!");
+    } else {
+      // MODO CADASTRO: Insere um novo documento
+      payload.createdAt = new Date();
+      await addDoc(collection(db, "aparelhos"), payload);
+      exibirToast("Aparelho cadastrado com sucesso!");
+    }
+
+    fecharEResetarFormulario();
+  } catch (error) {
+    console.error("Erro na transação:", error);
+    exibirToast("Ocorreu um erro operacional ao salvar.");
+  } finally {
+    document.getElementById('btn-submit-aparelho').disabled = false;
   }
+});
+
+// --- Mecanismo de Busca Dinâmica ---
+aparelhosSearch.addEventListener('input', (e) => {
+  const termo = e.target.value.toLowerCase().trim();
+  const filtrados = listaAparelhosLocal.filter(aparelho => 
+    aparelho.nome.toLowerCase().includes(termo) || 
+    aparelho.numero.toLowerCase().includes(termo)
+  );
+  renderizarAparelhos(filtrados);
+});
+
+// --- Escuta Ativa do Banco de Dados (Real-time Firestore) ---
+function inicializarEscutaAparelhos() {
+  const db = getFirestore();
+  const q = query(collection(db, "aparelhos"), where("userId", "==", userId));
+
+  onSnapshot(q, (snapshot) => {
+    listaAparelhosLocal = [];
+    snapshot.forEach((doc) => {
+      listaAparelhosLocal.push({ id: doc.id, ...doc.data() });
+    });
+    // Aplica a renderização imediata com os dados atualizados
+    renderizarAparelhos(listaAparelhosLocal);
+  }, (error) => {
+    console.error("Erro ao sincronizar aparelhos:", error);
+  });
 }
 
-// ═══════════════════════════════════════════════════════════
-// BOTTOM NAV
-// ═══════════════════════════════════════════════════════════
-$$('.nav-item').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const tab = btn.dataset.tab;
-    S.activeTab = tab;
-    $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-
-    if (tab === 'treino') {
-      showScreen(S.checkinOk ? 'selecao' : 'checkin');
-
-    } else if (tab === 'montar') {
-      showScreen('montar');
-      showLoader();
-      await carregarMontarTreinos();
-      hideLoader();
-
-    } else if (tab === 'aparelhos') {
-      showScreen('aparelhos');
-      showLoader();
-      await carregarAparelhos();
-      hideLoader();
-
-    } else if (tab === 'historico') {
-      showScreen('historico');
-      showLoader();
-      await carregarHistorico();
-      hideLoader();
-
-    } else if (tab === 'perfil') {
-      showScreen('perfil');
-    }
-  });
-});
+// Chame inicializarEscutaAparelhos() logo após a confirmação de login bem-sucedido
