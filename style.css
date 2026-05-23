@@ -878,3 +878,73 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   padding-right: 12px;
   flex-shrink: 0;
 }
+
+/* ═══ CHECK-OUT ══════════════════════════════════════════════ */
+.btn-checkout {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 14px 24px;
+  background: transparent;
+  border: 1.5px solid rgba(255,59,92,.35);
+  border-radius: var(--r);
+  color: var(--red);
+  font-size: 15px; font-weight: 600;
+  transition: all var(--dur) var(--ease);
+}
+.btn-checkout:hover { background: var(--red-dim); border-color: var(--red); }
+.btn-checkout:active { transform: scale(.98); }
+
+.checkout-icon { font-size: 44px; margin-bottom: 12px; text-align: center; }
+
+.checkout-info-wrap {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin: 20px 0;
+}
+
+.checkout-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.checkout-row:last-child { border-bottom: none; }
+
+.checkout-row-label { font-size: 13px; color: var(--text3); flex-shrink: 0; }
+.checkout-row-val   { font-size: 13px; font-weight: 500; text-align: right; color: var(--text); }
+
+.checkout-row-total { background: var(--accent-dim); border-top: 1px solid rgba(201,255,0,.15); }
+.checkout-duracao   { font-family: var(--font-d); font-size: 22px; color: var(--accent); letter-spacing: .03em; }
+
+.checkout-btns {
+  display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px;
+}
+
+/* Checkout no histórico/relatório */
+.checkout-historico-wrap {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin: 10px 0 8px;
+}
+.co-hist-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.co-hist-row:last-child { border-bottom: none; }
+.co-hist-row span  { color: var(--text3); }
+.co-hist-row strong { color: var(--text); }
+.co-dur { color: var(--accent) !important; font-family: var(--font-d); font-size: 18px; }
+.co-maps-link {
+  color: var(--teal); font-size: 12px; font-weight: 600;
+  text-decoration: none;
+  background: var(--teal-dim);
+  border: 1px solid rgba(0,229,201,.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+.co-maps-link:hover { background: rgba(0,229,201,.2); }

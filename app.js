@@ -13,8 +13,12 @@ const S = {
   montarTipo: 'A',
   montarExs: { A:[], B:[], C:[] },
   montarIds: { A:null, B:null, C:null },
-  apAtual: null,      // aparelho aberto no modal
-  editExIdx: null,    // índice do exercício sendo editado
+  apAtual: null,
+  editExIdx: null,
+  // Check-in / Check-out
+  checkinTime: null,       // Date do check-in
+  checkinCoords: null,     // {lat, lng, acc} do check-in
+  checkoutCoords: null,    // {lat, lng, acc} do check-out
 };
 
 // ── DOM ────────────────────────────────────────────────────
@@ -113,13 +117,14 @@ function setupCheckin(){
     navigator.geolocation.getCurrentPosition(
       pos=>{
         S.checkinOk=true;
+        S.checkinTime=new Date();
+        S.checkinCoords={lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy)};
         btn.disabled=false; btn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Fazer Check-in';
         toast(`✅ Check-in OK! ±${Math.round(pos.coords.accuracy)}m`);
-        // Atualiza UI do check-in
         $('checkin-icon').textContent='✅';
         $('checkin-ring').style.borderColor='rgba(0,229,201,.4)';
         $('checkin-title').textContent='Check-in realizado!';
-        $('checkin-sub').textContent=`Precisão: ±${Math.round(pos.coords.accuracy)}m`;
+        $('checkin-sub').textContent=`Entrada: ${S.checkinTime.toLocaleTimeString('pt-BR')} · ±${S.checkinCoords.acc}m`;
         btn.style.display='none'; btnR.style.display='flex';
         setTimeout(()=>{ S.activeTab='treino'; showScreen('selecao'); }, 1000);
       },
@@ -138,6 +143,108 @@ setupCheckin();
 
 // Botão refazer check-in na tela de seleção
 $('btn-ir-checkin').addEventListener('click',()=>{ S.checkinOk=false; S.activeTab='treino'; showScreen('checkin'); });
+
+// ── CHECK-OUT ──────────────────────────────────────────────
+function fmtHora(date) { return date ? date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '—'; }
+function fmtDuracao(ms) {
+  const totalMin = Math.round(ms / 60000);
+  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m} min`;
+}
+function fmtCoords(coords) { return coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)} (±${coords.acc}m)` : '—'; }
+
+function abrirModalCheckout() {
+  // Preenche dados de entrada
+  $('co-hora-entrada').textContent = S.checkinTime ? fmtHora(S.checkinTime) : 'Sem check-in';
+  $('co-entrada').textContent      = S.checkinCoords ? fmtCoords(S.checkinCoords) : 'Sem localização';
+  $('co-saida').textContent        = '📡 Obtendo localização...';
+  $('co-hora-saida').textContent   = '—';
+  $('co-duracao').textContent      = '—';
+  $('btn-confirmar-checkout').disabled = true;
+  $('modal-checkout').classList.remove('hidden');
+
+  // Obtém localização de saída
+  if (!navigator.geolocation) {
+    $('co-saida').textContent = 'GPS indisponível';
+    preencherCheckoutSemGPS();
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const saida = new Date();
+      S.checkoutCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+      $('co-saida').textContent     = fmtCoords(S.checkoutCoords);
+      $('co-hora-saida').textContent = fmtHora(saida);
+      if (S.checkinTime) {
+        $('co-duracao').textContent = fmtDuracao(saida - S.checkinTime);
+      }
+      $('btn-confirmar-checkout').disabled = false;
+    },
+    err => { $('co-saida').textContent = 'GPS indisponível'; preencherCheckoutSemGPS(); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+function preencherCheckoutSemGPS() {
+  const saida = new Date();
+  $('co-hora-saida').textContent = fmtHora(saida);
+  if (S.checkinTime) $('co-duracao').textContent = fmtDuracao(saida - S.checkinTime);
+  $('btn-confirmar-checkout').disabled = false;
+}
+
+// Botões checkout nas duas telas
+['btn-checkout', 'btn-checkout-exec'].forEach(id => {
+  const btn = $(id);
+  if (btn) btn.addEventListener('click', abrirModalCheckout);
+});
+
+$('btn-cancel-checkout').addEventListener('click', () => $('modal-checkout').classList.add('hidden'));
+
+$('btn-confirmar-checkout').addEventListener('click', async () => {
+  showLoader();
+  try {
+    const saidaTime = new Date();
+    const uid = S.user.uid;
+    await addDoc(collection(db, 'historico_treinos'), {
+      usuario_id:   uid,
+      data:         serverTimestamp(),
+      tipo_treino:  '🚪 Check-out',
+      cardio:       { aparelho: '', minutos: 0 },
+      forca:        [],
+      checkin: {
+        horario:    S.checkinTime ? S.checkinTime.toISOString() : null,
+        lat:        S.checkinCoords?.lat ?? null,
+        lng:        S.checkinCoords?.lng ?? null,
+        precisao:   S.checkinCoords?.acc ?? null,
+      },
+      checkout: {
+        horario:    saidaTime.toISOString(),
+        lat:        S.checkoutCoords?.lat ?? null,
+        lng:        S.checkoutCoords?.lng ?? null,
+        precisao:   S.checkoutCoords?.acc ?? null,
+      },
+      duracao_minutos: S.checkinTime ? Math.round((saidaTime - S.checkinTime) / 60000) : null,
+    });
+
+    $('modal-checkout').classList.add('hidden');
+    hideLoader();
+
+    // Reseta estado de check-in
+    S.checkinOk = false;
+    S.checkinTime = null;
+    S.checkinCoords = null;
+    S.checkoutCoords = null;
+
+    // Feedback visual
+    toast(`🏁 Checkout registrado! Bom descanso, ${(S.user.displayName||'Atleta').split(' ')[0]}! 💪`);
+    setTimeout(() => { S.activeTab = 'treino'; showScreen('checkin'); }, 1200);
+  } catch(e) {
+    hideLoader();
+    console.error('checkout:', e);
+    toast('Erro ao registrar checkout: ' + e.message, 'error');
+  }
+});
 
 // ── SELEÇÃO ────────────────────────────────────────────────
 async function carregarDescricoesTreinos(){
@@ -515,7 +622,21 @@ async function carregarRelatorio(){
       const tags=[];
       if(h.cardio?.minutos>0) tags.push(`<span class="h-tag cardio">❤️ ${h.cardio.aparelho} · ${h.cardio.minutos}min</span>`);
       (h.forca||[]).forEach(ex=>{ if(ex.carga>0||ex.reps>0) tags.push(`<span class="h-tag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps}</span>`); });
-      card.innerHTML=`<div class="historico-header"><span class="historico-tipo">${h.tipo_treino}</span><span class="historico-data">${fmtDate(h.data)}</span></div><div class="historico-tags">${tags.join('')||'<span class="h-tag">Treino registrado</span>'}</div>`;
+      // Se for registro de checkout, mostra dados detalhados
+      let extraHtml = '';
+      if (h.tipo_treino === '🚪 Check-out' && h.checkin && h.checkout) {
+        const entrada = h.checkin.horario ? new Date(h.checkin.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
+        const saida   = h.checkout.horario ? new Date(h.checkout.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
+        const dur     = h.duracao_minutos != null ? (h.duracao_minutos >= 60 ? `${Math.floor(h.duracao_minutos/60)}h ${h.duracao_minutos%60}min` : `${h.duracao_minutos} min`) : '—';
+        extraHtml = `<div class="checkout-historico-wrap">
+          <div class="co-hist-row"><span>🕐 Entrada</span><strong>${entrada}</strong></div>
+          <div class="co-hist-row"><span>🕐 Saída</span><strong>${saida}</strong></div>
+          <div class="co-hist-row"><span>⏱️ Duração</span><strong class="co-dur">${dur}</strong></div>
+          ${h.checkin.lat ? `<div class="co-hist-row"><span>📍 Entrada</span><a class="co-maps-link" href="https://maps.google.com/?q=${h.checkin.lat},${h.checkin.lng}" target="_blank">Ver no mapa</a></div>` : ''}
+          ${h.checkout.lat ? `<div class="co-hist-row"><span>📍 Saída</span><a class="co-maps-link" href="https://maps.google.com/?q=${h.checkout.lat},${h.checkout.lng}" target="_blank">Ver no mapa</a></div>` : ''}
+        </div>`;
+      }
+      card.innerHTML=`<div class="historico-header"><span class="historico-tipo">${h.tipo_treino}</span><span class="historico-data">${fmtDate(h.data)}</span></div>${extraHtml}<div class="historico-tags">${tags.join('')||(!extraHtml?'<span class="h-tag">Treino registrado</span>':'')}</div>`;
       list.appendChild(card);
     });
   }catch(e){ console.error(e); toast('Erro ao carregar relatório.','error'); }
