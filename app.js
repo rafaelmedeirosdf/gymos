@@ -23,6 +23,16 @@ const $$ = s  => document.querySelectorAll(s);
 const SCREENS = ['login','checkin','selecao','execucao','montar','aparelhos','relatorio','perfil'];
 const FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect fill="#1b1f2c" width="64" height="64"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-size="28" fill="#c9ff00">🏋️</text></svg>')}`;
 
+// Retorna a melhor foto disponível para o aparelho
+function fotoAp(ap) {
+  if (ap.url_foto) return ap.url_foto;
+  if (ap.video_url) {
+    const vid = ytId(ap.video_url);
+    if (vid) return `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
+  }
+  return FALLBACK;
+}
+
 function showScreen(name) {
   SCREENS.forEach(n => { const el=$(`screen-${n}`); if(el) el.classList.toggle('hidden', n!==name); });
   $('bottom-nav').classList.toggle('hidden', name==='login');
@@ -171,7 +181,7 @@ function renderExecucao(){
     const card=document.createElement('div'); card.className='exercicio-card'; card.dataset.index=i;
     card.innerHTML=`
       <div class="ex-top">
-        <img class="ex-thumb" src="${ex.url_foto||FALLBACK}" alt="${ex.nome}" onerror="this.src='${FALLBACK}'" style="cursor:${ex.video_url?'pointer':'default'}" data-video="${ex.video_url||''}">
+        <img class="ex-thumb" src="${ex.url_foto||(ex.video_url?`https://img.youtube.com/vi/${ytId(ex.video_url)||''}/hqdefault.jpg`:FALLBACK)}" alt="${ex.nome}" onerror="this.src='${FALLBACK}'" style="cursor:${ex.video_url?'pointer':'default'}" data-video="${ex.video_url||''}">
         <div class="ex-num-badge"><span class="ex-num">${ex.numero_aparelho||'—'}</span></div>
         <div class="ex-info">
           <div class="ex-name">${ex.nome}</div>
@@ -243,18 +253,35 @@ function renderMontarLista(){
   if(!exs.length){ list.innerHTML=`<div class="montar-tip"><span class="montar-tip-icon">💡</span><span class="montar-tip-text">Nenhum exercício. Toque em <strong>"Adicionar Exercício"</strong> para montar o <strong>Treino ${t}</strong>.</span></div>`; return; }
   exs.forEach((ex,i)=>{
     const item=document.createElement('div'); item.className='montar-ex-item';
+    // Thumb: foto do aparelho ou thumbnail do YouTube
+    const thumbSrc = ex.url_foto || (ex.video_url ? `https://img.youtube.com/vi/${ytId(ex.video_url)||''}/hqdefault.jpg` : FALLBACK);
+    const hasVideo = !!ex.video_url;
+
     item.innerHTML=`
+      <img class="montar-ex-thumb" src="${thumbSrc}" alt="${ex.nome}" onerror="this.src='${FALLBACK}'">
       <div class="montar-ex-num">${ex.numero_aparelho||'—'}</div>
       <div class="montar-ex-info">
         <div class="montar-ex-name">${ex.nome}</div>
         <div class="montar-ex-meta">${ex.series_meta||3} séries × ${ex.reps_meta||12} reps</div>
+        ${hasVideo ? '<div class="montar-ex-video-badge">🎬 Ver tutorial</div>' : '<div class="montar-ex-video-badge montar-sem-video">Sem vídeo</div>'}
       </div>
       <div class="montar-ex-btns">
         <button class="montar-ex-edit" data-index="${i}" title="Editar">✏️</button>
         <button class="montar-ex-del" data-index="${i}" title="Remover">✕</button>
       </div>`;
-    item.querySelector('.montar-ex-edit').addEventListener('click',()=>abrirEditarEx(i));
-    item.querySelector('.montar-ex-del').addEventListener('click',()=>{ if(confirm(`Remover "${ex.nome}"?`)){ S.montarExs[S.montarTipo].splice(i,1); renderMontarLista(); toast('Exercício removido.','info'); } });
+
+    // Clique na thumb ou nome abre o vídeo
+    item.querySelector('.montar-ex-thumb').addEventListener('click', () => {
+      if (hasVideo) abrirVideoModal(ex.video_url, ex.nome);
+      else toast('Sem vídeo. Edite o exercício e adicione um link do YouTube.', 'info');
+    });
+    item.querySelector('.montar-ex-info').addEventListener('click', () => {
+      if (hasVideo) abrirVideoModal(ex.video_url, ex.nome);
+      else toast('Sem vídeo. Edite o exercício e adicione um link do YouTube.', 'info');
+    });
+
+    item.querySelector('.montar-ex-edit').addEventListener('click', e => { e.stopPropagation(); abrirEditarEx(i); });
+    item.querySelector('.montar-ex-del').addEventListener('click', e => { e.stopPropagation(); if(confirm(`Remover "${ex.nome}"?`)){ S.montarExs[S.montarTipo].splice(i,1); renderMontarLista(); toast('Exercício removido.','info'); } });
     list.appendChild(item);
   });
 }
@@ -263,6 +290,7 @@ function renderMontarLista(){
 function abrirEditarEx(idx){
   const ex=S.montarExs[S.montarTipo][idx]; S.editExIdx=idx;
   $('edit-ex-nome').value=ex.nome||''; $('edit-ex-num').value=ex.numero_aparelho||''; $('edit-ex-series').value=ex.series_meta||3; $('edit-ex-reps').value=ex.reps_meta||12;
+  const editVidEl=$('edit-ex-video'); if(editVidEl) editVidEl.value=ex.video_url||'';
   $('modal-editar-ex').classList.remove('hidden');
 }
 $('btn-close-editar-ex').addEventListener('click',()=>$('modal-editar-ex').classList.add('hidden'));
@@ -273,6 +301,7 @@ $('btn-salvar-editar-ex').addEventListener('click',()=>{
   ex.numero_aparelho=$('edit-ex-num').value.trim();
   ex.series_meta=parseInt($('edit-ex-series').value)||3;
   ex.reps_meta=parseInt($('edit-ex-reps').value)||12;
+  const editVidSave=$('edit-ex-video'); if(editVidSave) ex.video_url=editVidSave.value.trim();
   $('modal-editar-ex').classList.add('hidden'); renderMontarLista(); toast('Exercício atualizado!');
 });
 
@@ -324,7 +353,21 @@ $('form-aparelho').addEventListener('submit', async e=>{
   finally{ btn.disabled=false; $('submit-label').textContent='Salvar'; hideLoader(); }
 });
 
-function uploadFoto(file,uid){ return new Promise((res,rej)=>{ const name=`${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`, ref=sRef(storage,`aparelhos/${uid}/${name}`), task=uploadBytesResumable(ref,file), wrap=$('upload-progress-wrap'), bar=$('upload-bar'), pctEl=$('upload-percent'); wrap.classList.remove('hidden'); task.on('state_changed',s=>{ const p=Math.round((s.bytesTransferred/s.totalBytes)*100); bar.style.width=p+'%'; pctEl.textContent=p+'%'; },e=>rej(e),async()=>res(await getDownloadURL(task.snapshot.ref))); }); }
+function uploadFoto(file,uid){ 
+  return new Promise((res,rej)=>{ 
+    console.log('Iniciando upload:', file.name, file.size, 'bytes');
+    const name=`${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`;
+    const ref=sRef(storage,`aparelhos/${uid}/${name}`);
+    const task=uploadBytesResumable(ref,file);
+    const wrap=$('upload-progress-wrap'), bar=$('upload-bar'), pctEl=$('upload-percent'); 
+    if(wrap) wrap.classList.remove('hidden'); 
+    task.on('state_changed',
+      s=>{ const p=Math.round((s.bytesTransferred/s.totalBytes)*100); if(bar) bar.style.width=p+'%'; if(pctEl) pctEl.textContent=p+'%'; console.log('Upload:',p+'%'); },
+      e=>{ console.error('Erro upload Storage:', e.code, e.message); rej(e); },
+      async()=>{ const url=await getDownloadURL(task.snapshot.ref); console.log('Upload concluído:', url); res(url); }
+    ); 
+  }); 
+}
 
 function uploadFotoGenerico(file,uid,idWrap,idBar,idPct){ return new Promise((res,rej)=>{ const name=`${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`, ref=sRef(storage,`aparelhos/${uid}/${name}`), task=uploadBytesResumable(ref,file), wrap=$(idWrap), bar=$(idBar), pctEl=$(idPct); if(wrap) wrap.classList.remove('hidden'); task.on('state_changed',s=>{ const p=Math.round((s.bytesTransferred/s.totalBytes)*100); if(bar) bar.style.width=p+'%'; if(pctEl) pctEl.textContent=p+'%'; },e=>rej(e),async()=>res(await getDownloadURL(task.snapshot.ref))); }); }
 
@@ -339,7 +382,7 @@ function renderAparelhos(list){
   list.forEach(ap=>{
     const item=document.createElement('div'); item.className='aparelho-item'; item.style.cursor='pointer';
     item.innerHTML=`
-      <img class="aparelho-img" src="${ap.url_foto||FALLBACK}" alt="${ap.nome}" onerror="this.src='${FALLBACK}'">
+      <img class="aparelho-img" src="${fotoAp(ap)}" alt="${ap.nome}" onerror="this.src='${FALLBACK}'">
       ${ap.video_url?'<div class="aparelho-video-badge">🎬</div>':''}
       <div class="aparelho-info"><div class="aparelho-num">#${ap.numero_aparelho}</div><div class="aparelho-nome">${ap.nome}</div></div>`;
     item.addEventListener('click',()=>abrirModalAparelho(ap));
@@ -354,7 +397,8 @@ function abrirModalAparelho(ap){
   S.apAtual=ap;
   $('modal-ap-nome').textContent=ap.nome;
   $('modal-ap-num').textContent=`#${ap.numero_aparelho}`;
-  const foto=$('modal-ap-foto'); foto.src=ap.url_foto||FALLBACK; foto.style.display=ap.url_foto?'block':'none';
+  const fotoSrc=fotoAp(ap);
+  const foto=$('modal-ap-foto'); foto.src=fotoSrc; foto.style.display='block';
   // Vídeo
   $('youtube-player-wrap').innerHTML=''; $('youtube-player-wrap').classList.add('hidden');
   if(ap.video_url){ const vid=ytId(ap.video_url); if(vid){ $('video-placeholder').classList.add('hidden'); $('youtube-player-wrap').classList.remove('hidden'); $('youtube-player-wrap').innerHTML=`<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;"><iframe src="https://www.youtube.com/embed/${vid}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;" allowfullscreen></iframe></div>`; }else{ $('video-placeholder').classList.remove('hidden'); } }

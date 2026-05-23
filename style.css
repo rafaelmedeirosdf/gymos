@@ -821,3 +821,60 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .cal-day.cal-treino { background:var(--accent-dim);border-color:rgba(201,255,0,.3);color:var(--accent);font-weight:700; }
 .cal-day.cal-hoje   { border-color:var(--teal);color:var(--teal); }
 .cal-day.cal-empty  { background:transparent;border-color:transparent; }
+
+/* ═══ MONTAR — Card com foto/thumb ════════════════════════ */
+.montar-ex-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease);
+}
+.montar-ex-item:hover { border-color: var(--accent); }
+
+.montar-ex-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+
+.montar-ex-num {
+  font-family: var(--font-d);
+  font-size: 20px;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: center;
+  background: var(--accent-dim);
+  border-radius: var(--r-sm);
+  padding: 6px 4px;
+  flex-shrink: 0;
+}
+
+.montar-ex-info {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.montar-ex-video-badge {
+  font-size: 11px;
+  color: var(--teal);
+  margin-top: 3px;
+}
+
+.montar-sem-video {
+  color: var(--text3) !important;
+}
+
+.montar-ex-btns {
+  display: flex;
+  gap: 6px;
+  padding-right: 12px;
+  flex-shrink: 0;
+}
