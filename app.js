@@ -460,23 +460,84 @@ $('form-aparelho').addEventListener('submit', async e=>{
   finally{ btn.disabled=false; $('submit-label').textContent='Salvar'; hideLoader(); }
 });
 
-function uploadFoto(file,uid){ 
-  return new Promise((res,rej)=>{ 
-    console.log('Iniciando upload:', file.name, file.size, 'bytes');
-    const name=`${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`;
-    const ref=sRef(storage,`aparelhos/${uid}/${name}`);
-    const task=uploadBytesResumable(ref,file);
-    const wrap=$('upload-progress-wrap'), bar=$('upload-bar'), pctEl=$('upload-percent'); 
-    if(wrap) wrap.classList.remove('hidden'); 
+async function uploadFoto(file, uid) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) { reject(new Error('Arquivo não é uma imagem.')); return; }
+    if (file.size > 5 * 1024 * 1024) { reject(new Error('Imagem muito grande. Máximo 5MB.')); return; }
+
+    const ext  = file.name.split('.').pop() || 'jpg';
+    const name = `${Date.now()}.${ext}`;
+    const ref  = sRef(storage, `aparelhos/${uid}/${name}`);
+    const task = uploadBytesResumable(ref, file);
+
+    const wrap  = $('upload-progress-wrap');
+    const bar   = $('upload-bar');
+    const pctEl = $('upload-percent');
+    if (wrap) wrap.classList.remove('hidden');
+
     task.on('state_changed',
-      s=>{ const p=Math.round((s.bytesTransferred/s.totalBytes)*100); if(bar) bar.style.width=p+'%'; if(pctEl) pctEl.textContent=p+'%'; console.log('Upload:',p+'%'); },
-      e=>{ console.error('Erro upload Storage:', e.code, e.message); rej(e); },
-      async()=>{ const url=await getDownloadURL(task.snapshot.ref); console.log('Upload concluído:', url); res(url); }
-    ); 
-  }); 
+      snap => {
+        const p = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        if (bar)   bar.style.width   = p + '%';
+        if (pctEl) pctEl.textContent = p + '%';
+      },
+      err => { console.error('Upload erro:', err.code, err.message); reject(err); },
+      async () => {
+        try { resolve(await getDownloadURL(task.snapshot.ref)); }
+        catch(e) { reject(e); }
+      }
+    );
+  });
 }
 
-function uploadFotoGenerico(file,uid,idWrap,idBar,idPct){ return new Promise((res,rej)=>{ const name=`${Date.now()}_${file.name.replace(/[^\w.-]/g,'_')}`, ref=sRef(storage,`aparelhos/${uid}/${name}`), task=uploadBytesResumable(ref,file), wrap=$(idWrap), bar=$(idBar), pctEl=$(idPct); if(wrap) wrap.classList.remove('hidden'); task.on('state_changed',s=>{ const p=Math.round((s.bytesTransferred/s.totalBytes)*100); if(bar) bar.style.width=p+'%'; if(pctEl) pctEl.textContent=p+'%'; },e=>rej(e),async()=>res(await getDownloadURL(task.snapshot.ref))); }); }
+async function uploadFotoGenerico(file, uid) {
+  return new Promise((resolve, reject) => {
+    // Valida tipo
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Arquivo não é uma imagem.')); return;
+    }
+    // Valida tamanho (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      reject(new Error('Imagem muito grande. Máximo 5MB.')); return;
+    }
+
+    const ext  = file.name.split('.').pop() || 'jpg';
+    const name = `${Date.now()}.${ext}`;
+    const path = `aparelhos/${uid}/${name}`;
+    console.log('Upload iniciando:', path, file.size, 'bytes', file.type);
+
+    const ref  = sRef(storage, path);
+    const task = uploadBytesResumable(ref, file);
+
+    const wrap  = $('nova-foto-progress-wrap');
+    const bar   = $('nova-foto-bar');
+    const pctEl = $('nova-foto-pct');
+    if (wrap) wrap.classList.remove('hidden');
+
+    task.on(
+      'state_changed',
+      snapshot => {
+        const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        console.log('Upload progresso:', pct + '%');
+        if (bar)   bar.style.width   = pct + '%';
+        if (pctEl) pctEl.textContent = pct + '%';
+      },
+      error => {
+        console.error('Erro no upload Storage:', error.code, error.message);
+        reject(error);
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(task.snapshot.ref);
+          console.log('Upload concluído. URL:', url);
+          resolve(url);
+        } catch (e) {
+          reject(e);
+        }
+      }
+    );
+  });
+}
 
 async function carregarAparelhos(){
   try{ const snap=await getDocs(query(collection(db,'aparelhos'),where('usuario_id','==',S.user.uid))); S.aparelhos=snap.docs.map(d=>({id:d.id,...d.data()})); $('perfil-total-aparelhos').textContent=S.aparelhos.length; renderAparelhos(S.aparelhos); }
@@ -537,12 +598,44 @@ $('btn-trocar-foto-ap').addEventListener('click',()=>{ $('modal-aparelho').class
 $('btn-close-trocar-foto').addEventListener('click',()=>$('modal-trocar-foto').classList.add('hidden'));
 $('btn-cancel-trocar-foto').addEventListener('click',()=>$('modal-trocar-foto').classList.add('hidden'));
 $('input-nova-foto').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; $('nova-foto-preview').src=URL.createObjectURL(f); $('nova-foto-preview').style.display='block'; $('nova-foto-icon').textContent='✅'; $('nova-foto-text').innerHTML=`<strong>${f.name}</strong>`; });
-$('btn-confirmar-trocar-foto').addEventListener('click', async ()=>{
-  const file=$('input-nova-foto').files[0]; if(!file){ toast('Selecione uma foto.','error'); return; }
+$('btn-confirmar-trocar-foto').addEventListener('click', async () => {
+  const fileInput = $('input-nova-foto');
+  const file = fileInput.files[0];
+
+  if (!file) { toast('Selecione uma foto antes de salvar.', 'error'); return; }
+  if (!S.apAtual) { toast('Nenhum aparelho selecionado.', 'error'); return; }
+
+  const btn = $('btn-confirmar-trocar-foto');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
   showLoader();
-  try{ const url=await uploadFotoGenerico(file,S.user.uid,'nova-foto-progress-wrap','nova-foto-bar','nova-foto-pct'); await updateDoc(doc(db,'aparelhos',S.apAtual.id),{url_foto:url}); S.apAtual.url_foto=url; $('modal-trocar-foto').classList.add('hidden'); toast('Foto atualizada! ✅'); await carregarAparelhos(); }
-  catch(e){ toast('Erro: '+e.message,'error'); }
-  hideLoader();
+
+  try {
+    const url = await uploadFotoGenerico(file, S.user.uid);
+
+    // Salva no Firestore
+    await updateDoc(doc(db, 'aparelhos', S.apAtual.id), { url_foto: url });
+    S.apAtual.url_foto = url;
+
+    // Fecha modal e atualiza lista
+    $('modal-trocar-foto').classList.add('hidden');
+    fileInput.value = '';
+    await carregarAparelhos();
+    toast('✅ Foto atualizada com sucesso!');
+
+  } catch (err) {
+    console.error('Trocar foto erro:', err);
+    const msg = err.code === 'storage/unauthorized'
+      ? 'Sem permissão no Storage. Verifique as regras do Firebase.'
+      : err.message || 'Erro desconhecido.';
+    toast('Erro: ' + msg, 'error');
+    alert('Erro ao salvar foto:
+' + msg);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar Foto';
+    hideLoader();
+  }
 });
 
 // ADD/EDITAR VÍDEO pelo modal
