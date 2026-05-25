@@ -65,7 +65,13 @@ function greet() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : 
 
 function ytId(url) {
   if (!url) return null;
-  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([^&?\/\s]{11})/);
+  // Suporta todos os formatos:
+  // https://www.youtube.com/watch?v=ID
+  // https://youtu.be/ID
+  // https://www.youtube.com/embed/ID
+  // https://www.youtube.com/shorts/ID   ← Shorts
+  // https://youtube.com/shorts/ID
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([^&?\/\s]{11})/);
   return m ? m[1] : null;
 }
 
