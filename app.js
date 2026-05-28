@@ -156,6 +156,29 @@ async function initApp() {
 
   const ct = S.ud.contador_treinos ?? 0;
   if (ct >= 30) { showModal30(); hideL(); return; }
+
+  // Restaura check-in salvo (persiste entre troca de abas/refresh)
+  const savedCI = sessionStorage.getItem('gymos_checkin');
+  if (savedCI) {
+    try {
+      const ci = JSON.parse(savedCI);
+      S.checkinOk = true;
+      S.ciTime    = new Date(ci.time);
+      S.ciCoords  = ci.coords;
+      // Atualiza UI do checkin
+      $('ci-ico').textContent = '✅';
+      $('ci-ring').style.borderColor = 'rgba(0,229,201,.4)';
+      $('ci-tit').textContent = 'Check-in realizado!';
+      $('ci-sub').textContent = `Entrada: ${fmtHora(S.ciTime)} · ±${S.ciCoords.acc}m`;
+      $('btn-refazer').style.display = 'flex';
+      $('btn-checkin').style.display = 'none';
+      S.activeTab = 'treino';
+      show('sel');
+      hideL();
+      return;
+    } catch(_) { sessionStorage.removeItem('gymos_checkin'); }
+  }
+
   S.activeTab = 'treino';
   show('checkin');
   hideL();
@@ -203,6 +226,8 @@ function doCheckin() {
       S.checkinOk  = true;
       S.ciTime     = new Date();
       S.ciCoords   = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+      // Persiste no sessionStorage para sobreviver a troca de abas
+      sessionStorage.setItem('gymos_checkin', JSON.stringify({ time: S.ciTime.toISOString(), coords: S.ciCoords }));
       btn.disabled = false;
       btn.textContent = '📍 Fazer Check-in';
       $('ci-ico').textContent   = '✅';
@@ -285,6 +310,7 @@ $('btn-conf-co').addEventListener('click', async () => {
     });
     $('m-checkout').classList.add('hidden');
     S.checkinOk = false; S.ciTime = null; S.ciCoords = null; S.coCoords = null;
+    sessionStorage.removeItem('gymos_checkin');
     toast('🏁 Checkout registrado! Bom descanso! 💪');
     setTimeout(() => { S.activeTab = 'treino'; show('checkin'); }, 1200);
   } catch(e) { toast('Erro checkout: ' + e.message, 'e'); }
@@ -336,6 +362,10 @@ function renderExec() {
   const list = $('ex-list'); list.innerHTML = '';
   const exs  = S.treinoAtual?.exercicios || [];
   $('ex-ct').textContent = `${exs.length} exercício${exs.length !== 1 ? 's' : ''}`;
+  // Reset controle de séries concluídas
+  S.seriesDone = {};
+  // Inicia cronômetro regressivo do cardio ao mudar os minutos
+  setupCardioCronometro();
 
   if (!exs.length) {
     list.innerHTML = `<div class="empty"><span class="empty-ico">📋</span><p class="empty-tit">Treino vazio</p><p class="empty-txt">Monte na aba <strong style="color:var(--acc)">Montar</strong> primeiro.</p></div>`;
@@ -343,29 +373,143 @@ function renderExec() {
   }
 
   exs.forEach((ex, i) => {
-    const thumb = ex.url_foto || (ex.video_url ? `https://img.youtube.com/vi/${ytId(ex.video_url) || ''}/hqdefault.jpg` : FB);
+    const thumb  = ex.url_foto || (ex.video_url ? `https://img.youtube.com/vi/${ytId(ex.video_url) || ''}/hqdefault.jpg` : FB);
+    const series = ex.series_meta || 3;
+    S.seriesDone[i] = 0;
     const card  = document.createElement('div');
-    card.className    = 'exc';
+    card.className     = 'exc';
     card.dataset.index = i;
+
+    // Gera botões de série
+    let seriesBtns = '';
+    for (let s = 1; s <= series; s++) {
+      seriesBtns += `<button class="serie-btn" data-ex="${i}" data-serie="${s}">Série ${s}</button>`;
+    }
+
     card.innerHTML = `
       <div class="ex-top">
         <img class="ex-thumb" src="${thumb}" alt="${ex.nome}" onerror="this.src='${FB}'" style="cursor:${ex.video_url ? 'pointer' : 'default'}">
-        <div class="ex-nbadge"><span class="ex-n">${ex.numero_aparelho || '—'}</span></div>
+        <div class="ex-nbadge"><span class="ex-n">${ex.numero_aparelho && ex.numero_aparelho !== '0' ? ex.numero_aparelho : '?'}</span></div>
         <div class="ex-info">
           <div class="ex-nm">${ex.nome}</div>
-          <div class="ex-mt">${ex.series_meta || 3}x${ex.reps_meta || 12} reps · meta</div>
+          <div class="ex-mt">${series}x${ex.reps_meta || 12} reps · meta</div>
           ${ex.video_url ? '<div class="ex-vbadge">🎬 Ver tutorial</div>' : ''}
         </div>
       </div>
+      <div class="ex-series-row">${seriesBtns}</div>
       <div class="ex-ins">
         <div class="ex-ic"><span class="fl">Carga (kg)</span><input type="number" class="inp-carga" placeholder="0" min="0" step="0.5" inputmode="decimal"></div>
         <div class="ex-ic"><span class="fl">Reps feitas</span><input type="number" class="inp-reps" placeholder="${ex.reps_meta || 12}" min="0" inputmode="numeric"></div>
       </div>`;
+
+    // Clique nas séries — marca como feita e inicia descanso
+    card.querySelectorAll('.serie-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('done')) return;
+        btn.classList.add('done');
+        btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
+        S.seriesDone[i] = (S.seriesDone[i] || 0) + 1;
+        const total = ex.series_meta || 3;
+        // Marca exercício como concluído
+        if (S.seriesDone[i] >= total) {
+          card.classList.add('ex-concluido');
+        }
+        // Inicia descanso de 45 segundos (exceto na última série do último exercício)
+        const isLastEx    = i === exs.length - 1;
+        const isLastSerie = S.seriesDone[i] >= total;
+        if (!(isLastEx && isLastSerie)) {
+          iniciarDescanso(isLastSerie ? 60 : 45);
+        }
+      });
+    });
+
     if (ex.video_url) {
       card.querySelector('.ex-thumb').addEventListener('click', () => abreVideo(ex.video_url, ex.nome));
       card.querySelector('.ex-vbadge')?.addEventListener('click', () => abreVideo(ex.video_url, ex.nome));
     }
     list.appendChild(card);
+  });
+}
+
+// ── DESCANSO ─────────────────────────────────────────────────
+let descansoIv = null;
+function iniciarDescanso(segundos) {
+  clearInterval(descansoIv);
+  const overlay = document.createElement('div');
+  overlay.id = 'descanso-overlay';
+  overlay.innerHTML = `
+    <div class="desc-box">
+      <div class="desc-label">⏱️ Descanso</div>
+      <div class="desc-timer" id="desc-num">${segundos}</div>
+      <div class="desc-sub">Próxima série em breve...</div>
+      <div class="desc-progress"><div class="desc-progress-fill" id="desc-fill" style="width:100%"></div></div>
+      <button class="desc-skip" id="desc-skip">Pular descanso →</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('active'));
+
+  const total  = segundos;
+  let remaining = segundos;
+
+  descansoIv = setInterval(() => {
+    remaining--;
+    const numEl  = document.getElementById('desc-num');
+    const fillEl = document.getElementById('desc-fill');
+    if (numEl)  numEl.textContent = remaining;
+    if (fillEl) fillEl.style.width = ((remaining / total) * 100) + '%';
+    if (remaining <= 0) { finalizarDescanso(); }
+  }, 1000);
+
+  document.getElementById('desc-skip')?.addEventListener('click', finalizarDescanso);
+}
+
+function finalizarDescanso() {
+  clearInterval(descansoIv);
+  const el = document.getElementById('descanso-overlay');
+  if (el) { el.classList.remove('active'); setTimeout(() => el.remove(), 400); }
+}
+
+// ── CARDIO CRONÔMETRO ────────────────────────────────────────
+let cardioIv = null;
+function setupCardioCronometro() {
+  const minInput = $('crd-min');
+  const btn = document.getElementById('btn-cardio-start');
+  if (!btn || !minInput) return;
+
+  btn.addEventListener('click', () => {
+    const mins = parseInt(minInput.value) || 0;
+    if (mins <= 0) { toast('Digite os minutos do cardio.', 'e'); return; }
+    clearInterval(cardioIv);
+    let remaining = mins * 60;
+    const display = document.getElementById('cardio-countdown');
+    if (display) { display.style.display = 'flex'; }
+    btn.textContent = '⏹ Parar';
+    btn.onclick = () => {
+      clearInterval(cardioIv);
+      if (display) display.style.display = 'none';
+      btn.textContent = '▶ Iniciar';
+      btn.onclick = null;
+      setupCardioCronometro();
+    };
+
+    function tick() {
+      const m = String(Math.floor(remaining / 60)).padStart(2,'0');
+      const s = String(remaining % 60).padStart(2,'0');
+      const numEl = document.getElementById('cardio-time-display');
+      if (numEl) numEl.textContent = `${m}:${s}`;
+      const pct = document.getElementById('cardio-prog-fill');
+      if (pct) pct.style.width = ((remaining / (mins * 60)) * 100) + '%';
+      if (remaining <= 0) {
+        clearInterval(cardioIv);
+        if (display) display.style.display = 'none';
+        btn.textContent = '▶ Iniciar';
+        toast('✅ Cardio concluído! Bom trabalho! 💪');
+        btn.onclick = null; setupCardioCronometro();
+      }
+      remaining--;
+    }
+    tick();
+    cardioIv = setInterval(tick, 1000);
   });
 }
 
@@ -450,7 +594,7 @@ function renderMontar() {
     item.className = 'mex-item';
     item.innerHTML = `
       <img class="mex-thumb" src="${thumb}" alt="${ex.nome}" onerror="this.src='${FB}'">
-      <div class="mex-num">${ex.numero_aparelho || '—'}</div>
+      <div class="mex-num">${ex.numero_aparelho && ex.numero_aparelho !== '0' && ex.numero_aparelho !== '' ? ex.numero_aparelho : '?'}</div>
       <div class="mex-inf">
         <div class="mex-nm">${ex.nome}</div>
         <div class="mex-mt">${ex.series_meta || 3} séries × ${ex.reps_meta || 12} reps</div>

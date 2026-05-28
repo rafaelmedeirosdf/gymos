@@ -197,3 +197,116 @@ input[type=number]{-moz-appearance:textfield}input[type=number]::-webkit-inner-s
 .pst-v{font-family:var(--fd);font-size:40px;color:var(--acc);display:block;line-height:1}.pst-l{font-size:12px;color:var(--txt3);margin-top:8px;display:block}
 @media(min-width:480px){.screen{max-width:480px;margin:0 auto;padding-left:28px;padding-right:28px}.bnav{max-width:480px;left:50%;transform:translateX(-50%)}.modal-box{max-width:480px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ═══ SÉRIES + DESCANSO + CARDIO COUNTDOWN ══════════════════ */
+
+/* Botões de série */
+.ex-series-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 10px 14px; border-top: 1px solid var(--bor);
+}
+.serie-btn {
+  padding: 7px 14px; border-radius: 20px;
+  background: var(--sur2); border: 1px solid var(--bor2);
+  color: var(--txt2); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.serie-btn:hover { border-color: var(--acc); color: var(--acc); }
+.serie-btn.done {
+  background: var(--acc-d); border-color: var(--acc);
+  color: var(--acc); text-decoration: none;
+  cursor: default;
+}
+
+/* Exercício concluído */
+.ex-concluido {
+  border-color: rgba(201,255,0,.4) !important;
+  position: relative;
+}
+.ex-concluido::after {
+  content: '✅ Concluído';
+  position: absolute; top: 10px; right: 12px;
+  background: var(--acc); color: #080a0d;
+  font-size: 11px; font-weight: 700;
+  border-radius: 20px; padding: 3px 10px;
+  font-family: var(--fb);
+}
+
+/* Overlay de descanso */
+#descanso-overlay {
+  position: fixed; inset: 0; z-index: 7000;
+  background: rgba(0,0,0,.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .3s;
+}
+#descanso-overlay.active { opacity: 1; }
+
+.desc-box {
+  background: var(--sur);
+  border: 1px solid var(--bor2);
+  border-radius: 28px;
+  padding: 36px 28px;
+  width: calc(100% - 40px);
+  max-width: 360px;
+  text-align: center;
+}
+.desc-label {
+  font-size: 13px; color: var(--txt3);
+  font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.desc-timer {
+  font-family: var(--fd);
+  font-size: 96px; line-height: 1;
+  color: var(--acc); margin-bottom: 8px;
+  letter-spacing: -.02em;
+}
+.desc-sub { font-size: 13px; color: var(--txt2); margin-bottom: 20px; }
+.desc-progress {
+  height: 6px; background: var(--bor);
+  border-radius: 3px; overflow: hidden; margin-bottom: 20px;
+}
+.desc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--tea), var(--acc));
+  border-radius: 3px; transition: width 1s linear;
+}
+.desc-skip {
+  background: transparent; border: 1px solid var(--bor2);
+  color: var(--txt2); border-radius: 40px;
+  padding: 10px 24px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.desc-skip:hover { border-color: var(--txt); color: var(--txt); }
+
+/* Cardio countdown */
+.btn-cardio-start {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; padding: 11px;
+  background: var(--tea-d); border: 1px solid rgba(0,229,201,.3);
+  border-radius: var(--r); color: var(--tea);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all .2s; margin-top: 12px;
+}
+.btn-cardio-start:hover { background: rgba(0,229,201,.2); }
+
+.cardio-countdown {
+  margin-top: 14px; text-align: center;
+  background: var(--sur2); border: 1px solid var(--bor2);
+  border-radius: var(--r); padding: 16px;
+}
+.cardio-time {
+  font-family: var(--fd); font-size: 56px;
+  color: var(--tea); line-height: 1; letter-spacing: .05em;
+}
+.cardio-prog {
+  height: 4px; background: var(--bor);
+  border-radius: 2px; overflow: hidden; margin-top: 10px;
+}
+.cardio-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--tea), var(--acc));
+  border-radius: 2px; transition: width 1s linear;
+}
