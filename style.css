@@ -310,3 +310,11 @@ input[type=number]{-moz-appearance:textfield}input[type=number]::-webkit-inner-s
   background: linear-gradient(90deg, var(--tea), var(--acc));
   border-radius: 2px; transition: width 1s linear;
 }
+
+/* Badge sem número */
+.ap-sem-num {
+  position: absolute; top: 6px; left: 6px;
+  background: rgba(255,59,92,.85);
+  color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 6px; padding: 2px 7px;
+}

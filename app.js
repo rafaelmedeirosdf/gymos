@@ -81,6 +81,13 @@ function fotoAp(ap) {
   return FB;
 }
 
+// Retorna o número do aparelho de forma segura (inclusive "0" é válido se digitado)
+function numAp(n) {
+  if (n === undefined || n === null || n === '') return '?';
+  const s = String(n).trim();
+  return s === '' ? '?' : s;
+}
+
 // ── UPLOAD ───────────────────────────────────────────────────
 function doUpload(file, uid, barId, pctId, progId) {
   return new Promise((resolve, reject) => {
@@ -389,7 +396,7 @@ function renderExec() {
     card.innerHTML = `
       <div class="ex-top">
         <img class="ex-thumb" src="${thumb}" alt="${ex.nome}" onerror="this.src='${FB}'" style="cursor:${ex.video_url ? 'pointer' : 'default'}">
-        <div class="ex-nbadge"><span class="ex-n">${ex.numero_aparelho && ex.numero_aparelho !== '0' ? ex.numero_aparelho : '?'}</span></div>
+        <div class="ex-nbadge"><span class="ex-n">${numAp(ex.numero_aparelho)}</span></div>
         <div class="ex-info">
           <div class="ex-nm">${ex.nome}</div>
           <div class="ex-mt">${series}x${ex.reps_meta || 12} reps · meta</div>
@@ -594,7 +601,7 @@ function renderMontar() {
     item.className = 'mex-item';
     item.innerHTML = `
       <img class="mex-thumb" src="${thumb}" alt="${ex.nome}" onerror="this.src='${FB}'">
-      <div class="mex-num">${ex.numero_aparelho && ex.numero_aparelho !== '0' && ex.numero_aparelho !== '' ? ex.numero_aparelho : '?'}</div>
+      <div class="mex-num">${numAp(ex.numero_aparelho)}</div>
       <div class="mex-inf">
         <div class="mex-nm">${ex.nome}</div>
         <div class="mex-mt">${ex.series_meta || 3} séries × ${ex.reps_meta || 12} reps</div>
@@ -732,7 +739,8 @@ function renderAps(list) {
   if (!list.length) { grid.innerHTML = `<div class="empty"><span class="empty-ico">🏋️</span><p class="empty-tit">Sem aparelhos</p><p class="empty-txt">Cadastre o primeiro usando o + acima.</p></div>`; return; }
   list.forEach(ap => {
     const item = document.createElement('div'); item.className = 'ap-item';
-    item.innerHTML = `<img class="ap-img" src="${fotoAp(ap)}" alt="${ap.nome}" onerror="this.src='${FB}'">${ap.video_url ? '<div class="ap-vbadge">🎬</div>' : ''}<div class="ap-inf"><div class="ap-num">#${ap.numero_aparelho}</div><div class="ap-nome">${ap.nome}</div></div>`;
+    const semNum = !ap.numero_aparelho || String(ap.numero_aparelho).trim() === '' || String(ap.numero_aparelho).trim() === '0';
+    item.innerHTML = `<img class="ap-img" src="${fotoAp(ap)}" alt="${ap.nome}" onerror="this.src='${FB}'">${ap.video_url ? '<div class="ap-vbadge">🎬</div>' : ''}${semNum ? '<div class="ap-sem-num">✏️ Sem nº</div>' : ''}<div class="ap-inf"><div class="ap-num">#${numAp(ap.numero_aparelho)}</div><div class="ap-nome">${ap.nome}</div></div>`;
     item.addEventListener('click', () => abreModalAp(ap));
     grid.appendChild(item);
   });
@@ -747,7 +755,7 @@ $('ap-srch').addEventListener('input', e => {
 function abreModalAp(ap) {
   S.apAtual = ap;
   $('ap-nome-m').textContent = ap.nome;
-  $('ap-num-m').textContent  = `#${ap.numero_aparelho}`;
+  $('ap-num-m').textContent  = `#${numAp(ap.numero_aparelho)}`;
   const foto = $('ap-foto-m'); foto.src = fotoAp(ap); foto.style.display = 'block';
   const yt = $('ap-yt'), ph = $('ap-vid-ph');
   yt.innerHTML = ''; yt.classList.add('hidden'); ph.classList.remove('hidden');
@@ -890,7 +898,7 @@ async function carregaRel() {
       const card = document.createElement('div'); card.className = 'hcard';
       const tags = [];
       if (h.cardio?.minutos > 0) tags.push(`<span class="htag co">❤️ ${h.cardio.aparelho} · ${h.cardio.minutos}min</span>`);
-      (h.forca || []).forEach(ex => { if (ex.carga > 0 || ex.reps > 0) tags.push(`<span class="htag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps}</span>`); });
+      (h.forca || []).forEach(ex => { if (ex.carga > 0 || ex.reps > 0) tags.push(`<span class="htag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps} reps</span>`); });
       let extra = '';
       if (h.tipo_treino === '🚪 Check-out' && h.checkin && h.checkout) {
         const ent = h.checkin.horario  ? new Date(h.checkin.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
