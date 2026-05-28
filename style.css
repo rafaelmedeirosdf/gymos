@@ -318,3 +318,51 @@ input[type=number]{-moz-appearance:textfield}input[type=number]::-webkit-inner-s
   color: #fff; font-size: 10px; font-weight: 700;
   border-radius: 6px; padding: 2px 7px;
 }
+
+/* ═══ HISTÓRICO — editar/deletar ══════════════════════════════ */
+.hcard-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.hcard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.hcard-edit-btn, .hcard-del-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.hcard-edit-btn {
+  background: var(--acc-d);
+  border: 1px solid rgba(201,255,0,.2);
+}
+.hcard-edit-btn:hover { background: var(--acc); }
+.hcard-del-btn {
+  background: var(--red-d);
+  border: 1px solid rgba(255,59,92,.2);
+}
+.hcard-del-btn:hover { background: var(--red); }
+
+/* Modal editar histórico */
+.hedit-tipo-row { margin-top: 4px; }
+.hedit-ex-row {
+  background: var(--sur2);
+  border: 1px solid var(--bor);
+  border-radius: var(--r);
+  padding: 12px;
+}
+.hedit-ex-nm {
+  font-size: 13px; font-weight: 600;
+  margin-bottom: 10px; color: var(--txt);
+}
+.hedit-ex-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hedit-field { display: flex; flex-direction: column; gap: 4px; }
