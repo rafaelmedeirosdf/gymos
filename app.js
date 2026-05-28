@@ -115,7 +115,11 @@ $('btn-login').addEventListener('click', async () => {
 });
 
 $('btn-logout').addEventListener('click', async () => {
-  try { await signOut(auth); } catch(e) { console.error(e); }
+  try {
+    localStorage.removeItem('gymos_last_tab');
+    sessionStorage.removeItem('gymos_checkin');
+    await signOut(auth);
+  } catch(e) { console.error(e); }
 });
 
 onAuthStateChanged(auth, async user => {
@@ -172,23 +176,38 @@ async function initApp() {
       S.checkinOk = true;
       S.ciTime    = new Date(ci.time);
       S.ciCoords  = ci.coords;
-      // Atualiza UI do checkin
       $('ci-ico').textContent = '✅';
       $('ci-ring').style.borderColor = 'rgba(0,229,201,.4)';
       $('ci-tit').textContent = 'Check-in realizado!';
       $('ci-sub').textContent = `Entrada: ${fmtHora(S.ciTime)} · ±${S.ciCoords.acc}m`;
       $('btn-refazer').style.display = 'flex';
       $('btn-checkin').style.display = 'none';
-      S.activeTab = 'treino';
-      show('sel');
-      hideL();
-      return;
     } catch(_) { sessionStorage.removeItem('gymos_checkin'); }
   }
 
-  S.activeTab = 'treino';
-  show('checkin');
+  // Restaura última aba visitada
+  await restoreLastTab();
   hideL();
+}
+
+async function restoreLastTab() {
+  const lastTab = localStorage.getItem('gymos_last_tab') || 'treino';
+  S.activeTab = lastTab;
+  $$('.ni').forEach(b => b.classList.toggle('active', b.dataset.tab === lastTab));
+
+  if (lastTab === 'treino') {
+    show(S.checkinOk ? 'sel' : 'checkin');
+  } else if (lastTab === 'montar') {
+    show('montar'); await carregaMontar();
+  } else if (lastTab === 'aparelhos') {
+    show('ap'); await carregaAps();
+  } else if (lastTab === 'relatorio') {
+    show('rel'); await carregaRel();
+  } else if (lastTab === 'perfil') {
+    show('perfil');
+  } else {
+    show(S.checkinOk ? 'sel' : 'checkin');
+  }
 }
 
 function atualizaStats() {
@@ -1164,6 +1183,7 @@ $$('.ni').forEach(btn => {
   btn.addEventListener('click', async () => {
     const tab = btn.dataset.tab;
     S.activeTab = tab;
+    localStorage.setItem('gymos_last_tab', tab);   // persiste entre sessões
     $$('.ni').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     if      (tab === 'treino')    { show(S.checkinOk ? 'sel' : 'checkin'); }
     else if (tab === 'montar')    { show('montar');  showL(); await carregaMontar(); hideL(); }
