@@ -31,7 +31,7 @@ const S = {
 // ── DOM ──────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const $$ = s  => document.querySelectorAll(s);
-const SCRS = ['login','checkin','sel','exec','montar','ap','rel','perfil'];
+const SCRS = ['login','checkin','sel','exec','montar','ap','rel','musica','perfil'];
 const FB = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect fill="#1b1f2c" width="64" height="64"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-size="28" fill="#c9ff00">🏋️</text></svg>')}`;
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -203,6 +203,8 @@ async function restoreLastTab() {
     show('ap'); await carregaAps();
   } else if (lastTab === 'relatorio') {
     show('rel'); await carregaRel();
+  } else if (lastTab === 'musica') {
+    show('musica'); initDeezer();
   } else if (lastTab === 'perfil') {
     show('perfil');
   } else {
@@ -1178,6 +1180,157 @@ function abreEditHistorico(h, cardEl) {
   });
 }
 
+// ── DEEZER ───────────────────────────────────────────────────
+const DEEZER_SAVED_KEY = 'gymos_deezer_saved';
+
+function initDeezer() {
+  renderDeezerSaved();
+  setupDeezerEvents();
+}
+
+let deezerEventsSetup = false;
+function setupDeezerEvents() {
+  if (deezerEventsSetup) return;
+  deezerEventsSetup = true;
+
+  // Botão tocar link digitado
+  $('btn-deezer-play').addEventListener('click', () => {
+    const url = $('deezer-url-input').value.trim();
+    if (!url) { toast('Cole um link do Deezer.', 'e'); return; }
+    tocarDeezer(url, true);
+  });
+
+  // Enter no input
+  $('deezer-url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('btn-deezer-play').click();
+  });
+
+  // Playlists preset
+  document.querySelectorAll('.deezer-preset-card').forEach(card => {
+    card.querySelector('.deezer-preset-btn').addEventListener('click', () => {
+      const url = card.dataset.url;
+      tocarDeezer(url, false);
+    });
+    card.addEventListener('click', e => {
+      if (e.target.classList.contains('deezer-preset-btn')) return;
+      const url = card.dataset.url;
+      tocarDeezer(url, false);
+    });
+  });
+}
+
+function deezerUrlToEmbed(url) {
+  // Converte URL pública do Deezer para URL de embed
+  // Ex: https://www.deezer.com/br/playlist/123 → https://widget.deezer.com/widget/dark/playlist/123
+  try {
+    const u = new URL(url);
+    // Pega o path: /br/playlist/123 ou /playlist/123
+    const parts = u.pathname.split('/').filter(Boolean);
+    // Remove prefixo de idioma (br, en, etc.) se existir
+    let type, id;
+    if (parts.length >= 3 && parts[0].length === 2) {
+      type = parts[1]; id = parts[2];
+    } else if (parts.length >= 2) {
+      type = parts[0]; id = parts[1];
+    } else {
+      return null;
+    }
+    // Tipos suportados: playlist, album, track, artist, radio
+    const tipos = ['playlist','album','track','artist','radio','podcast','episode'];
+    if (!tipos.includes(type)) return null;
+    return `https://widget.deezer.com/widget/dark/${type}/${id}`;
+  } catch(e) {
+    return null;
+  }
+}
+
+function tocarDeezer(url, salvar) {
+  const embedUrl = deezerUrlToEmbed(url);
+  if (!embedUrl) {
+    toast('Link inválido. Use um link do deezer.com', 'e');
+    return;
+  }
+
+  const container = $('deezer-iframe-container');
+  const wrap      = $('deezer-player-wrap');
+
+  // Cria o iframe do widget Deezer
+  container.innerHTML = `<iframe
+    title="Deezer Player"
+    src="${embedUrl}"
+    width="100%"
+    height="300"
+    frameborder="0"
+    allowtransparency="true"
+    allow="encrypted-media; autoplay; clipboard-write"
+    style="border-radius:12px"
+  ></iframe>`;
+
+  wrap.classList.remove('hidden');
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toast('🎵 Player carregado!');
+
+  // Salva nos favoritos se veio do input manual
+  if (salvar && url) {
+    salvarDeezerPlaylist(url);
+    $('deezer-url-input').value = '';
+  }
+}
+
+function salvarDeezerPlaylist(url) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DEEZER_SAVED_KEY) || '[]');
+    if (saved.find(s => s.url === url)) return; // já existe
+    const u     = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    let type = parts.length >= 3 ? parts[1] : parts[0];
+    const icons = { playlist:'🎵', album:'💿', track:'🎵', artist:'🎤', radio:'📻', podcast:'🎙️' };
+    saved.unshift({ url, type, icon: icons[type] || '🎵', nome: type + ' salvo', data: new Date().toLocaleDateString('pt-BR') });
+    if (saved.length > 20) saved.pop(); // máximo 20
+    localStorage.setItem(DEEZER_SAVED_KEY, JSON.stringify(saved));
+    renderDeezerSaved();
+  } catch(e) { console.error(e); }
+}
+
+function renderDeezerSaved() {
+  const list = $('deezer-saved-list'); if (!list) return;
+  const saved = JSON.parse(localStorage.getItem(DEEZER_SAVED_KEY) || '[]');
+  list.innerHTML = '';
+
+  if (!saved.length) {
+    list.innerHTML = `<div class="deezer-empty-saved"><span>🎵</span><p>Nenhuma playlist salva ainda.<br/>Cole um link e toque para salvar.</p></div>`;
+    return;
+  }
+
+  saved.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'deezer-saved-card';
+    card.innerHTML = `
+      <span class="deezer-saved-icon">${item.icon}</span>
+      <div class="deezer-saved-info">
+        <div class="deezer-saved-type">${item.type}</div>
+        <div class="deezer-saved-url">${item.url.replace('https://www.deezer.com/br/','').replace('https://www.deezer.com/','')}</div>
+      </div>
+      <div class="deezer-saved-btns">
+        <button class="deezer-saved-play" title="Tocar">▶</button>
+        <button class="deezer-saved-del"  title="Remover">✕</button>
+      </div>`;
+    card.querySelector('.deezer-saved-play').addEventListener('click', () => tocarDeezer(item.url, false));
+    card.querySelector('.deezer-saved-del').addEventListener('click', () => {
+      const all = JSON.parse(localStorage.getItem(DEEZER_SAVED_KEY) || '[]');
+      all.splice(i, 1);
+      localStorage.setItem(DEEZER_SAVED_KEY, JSON.stringify(all));
+      renderDeezerSaved();
+      toast('Removido.', 'i');
+    });
+    card.addEventListener('click', e => {
+      if (e.target.classList.contains('deezer-saved-play') || e.target.classList.contains('deezer-saved-del')) return;
+      tocarDeezer(item.url, false);
+    });
+    list.appendChild(card);
+  });
+}
+
 // ── BOTTOM NAV ───────────────────────────────────────────────
 $$('.ni').forEach(btn => {
   btn.addEventListener('click', async () => {
@@ -1189,6 +1342,7 @@ $$('.ni').forEach(btn => {
     else if (tab === 'montar')    { show('montar');  showL(); await carregaMontar(); hideL(); }
     else if (tab === 'aparelhos') { show('ap');      showL(); await carregaAps();   hideL(); }
     else if (tab === 'relatorio') { show('rel');     showL(); await carregaRel();   hideL(); }
+    else if (tab === 'musica')    { show('musica');  initDeezer(); }
     else if (tab === 'perfil')    { show('perfil'); }
   });
 });

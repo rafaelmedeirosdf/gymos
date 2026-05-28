@@ -366,3 +366,154 @@ input[type=number]{-moz-appearance:textfield}input[type=number]::-webkit-inner-s
 }
 .hedit-ex-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .hedit-field { display: flex; flex-direction: column; gap: 4px; }
+
+/* ═══ DEEZER / MÚSICA ════════════════════════════════════════ */
+
+.deezer-badge {
+  background: linear-gradient(135deg, #a238ff, #7000e8);
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .06em;
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+
+.deezer-player-wrap {
+  background: var(--sur2);
+  border: 1px solid var(--bor2);
+  border-radius: var(--rl);
+  overflow: hidden;
+  margin-bottom: 16px;
+  animation: sIn .3s var(--ease);
+}
+.deezer-iframe-container iframe {
+  display: block;
+}
+
+/* Busca */
+.deezer-search-wrap {
+  display: flex; gap: 10px; align-items: center;
+  margin-bottom: 20px;
+}
+.deezer-search-wrap .srch { margin-bottom: 0; flex: 1; }
+.btn-deezer-play {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #a238ff, #7000e8);
+  color: #fff;
+  border: none;
+  border-radius: var(--r);
+  padding: 10px 16px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+  white-space: nowrap;
+}
+.btn-deezer-play:hover { opacity: .85; transform: translateY(-1px); }
+.btn-deezer-play:active { transform: scale(.97); }
+
+/* Seção título */
+.deezer-section-title {
+  font-size: 13px; font-weight: 700;
+  color: var(--txt2);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* Playlists preset */
+.deezer-presets { display: flex; flex-direction: column; gap: 10px; }
+
+.deezer-preset-card {
+  background: var(--sur);
+  border: 1px solid var(--bor);
+  border-radius: var(--rl);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: all .2s;
+}
+.deezer-preset-card:hover { border-color: #a238ff; transform: translateX(3px); }
+.deezer-preset-card:active { transform: scale(.98); }
+
+.deezer-preset-cover {
+  width: 48px; height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #a238ff22, #7000e822);
+  border: 1px solid rgba(162,56,255,.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; flex-shrink: 0;
+}
+.deezer-preset-info { flex: 1; }
+.deezer-preset-name { font-weight: 600; font-size: 14px; }
+.deezer-preset-sub  { font-size: 12px; color: var(--txt3); margin-top: 2px; }
+
+.deezer-preset-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a238ff, #7000e8);
+  color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+  border: none;
+}
+.deezer-preset-btn:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(162,56,255,.4); }
+
+/* Playlists salvas */
+.deezer-saved-list { display: flex; flex-direction: column; gap: 8px; }
+
+.deezer-empty-saved {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 24px;
+  background: var(--sur); border: 1px dashed var(--bor2);
+  border-radius: var(--rl); text-align: center;
+  color: var(--txt3); font-size: 13px;
+}
+.deezer-empty-saved span { font-size: 32px; }
+
+.deezer-saved-card {
+  background: var(--sur);
+  border: 1px solid var(--bor);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: all .2s;
+}
+.deezer-saved-card:hover { border-color: rgba(162,56,255,.4); }
+
+.deezer-saved-icon {
+  font-size: 24px; flex-shrink: 0;
+  width: 40px; height: 40px;
+  background: rgba(162,56,255,.1);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.deezer-saved-info { flex: 1; min-width: 0; }
+.deezer-saved-type { font-size: 11px; color: #a238ff; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.deezer-saved-url  { font-size: 12px; color: var(--txt2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.deezer-saved-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.deezer-saved-play {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, #a238ff, #7000e8);
+  color: #fff; font-size: 12px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.deezer-saved-play:hover { transform: scale(1.1); }
+.deezer-saved-del {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--red-d); border: 1px solid rgba(255,59,92,.2);
+  color: var(--red); font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.deezer-saved-del:hover { background: var(--red); color: #fff; }
+
+/* Dica */
+.deezer-tip {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(162,56,255,.08);
+  border: 1px solid rgba(162,56,255,.2);
+  border-radius: var(--r);
+  padding: 14px; margin-top: 16px;
+  font-size: 13px; color: var(--txt2); line-height: 1.55;
+}
+.deezer-tip span { font-size: 18px; flex-shrink: 0; }
