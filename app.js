@@ -916,12 +916,13 @@ async function carregaRel() {
     $('rel-mes').textContent = docs.filter(isMes).length;
 
     // Frequência
-    const freq = {}; docs.forEach(d => { const t = d.tipo_treino || '?'; freq[t] = (freq[t] || 0) + 1; });
+    const freq = {};
+    docs.forEach(d => { const t = d.tipo_treino || '?'; freq[t] = (freq[t] || 0) + 1; });
     const fw = $('rel-freq'); fw.innerHTML = '';
     Object.entries(freq).sort((a, b) => b[1] - a[1]).forEach(([tipo, n]) => {
       const pct  = docs.length ? Math.round((n / docs.length) * 100) : 0;
       const item = document.createElement('div'); item.className = 'freq-item';
-      item.innerHTML = `<div class="freq-lbl"><span class="freq-tipo">${tipo}</span><span class="freq-n">${n}x</span></div><div class="freq-bw"><div class="freq-bf" style="width:${pct}%"></div></div>`;
+      item.innerHTML = '<div class="freq-lbl"><span class="freq-tipo">' + tipo + '</span><span class="freq-n">' + n + 'x</span></div><div class="freq-bw"><div class="freq-bf" style="width:' + pct + '%"></div></div>';
       fw.appendChild(item);
     });
     if (!Object.keys(freq).length) fw.innerHTML = '<p style="color:var(--txt3);font-size:13px">Nenhum treino ainda.</p>';
@@ -937,36 +938,225 @@ async function carregaRel() {
       const d    = new Date(ini); d.setDate(d.getDate() + i);
       const str  = d.toLocaleDateString('pt-BR');
       const cell = document.createElement('div');
-      cell.className = `cal-d${diasT.has(str) ? ' ct' : ''}${d.getTime() === hoje.getTime() ? ' hj' : ''}`;
+      cell.className = 'cal-d' + (diasT.has(str) ? ' ct' : '') + (d.getTime() === hoje.getTime() ? ' hj' : '');
       cell.textContent = d.getDate(); cell.title = str + (diasT.has(str) ? ' — Treinou' : '');
       cg.appendChild(cell);
     }
 
-    // Histórico
+    // Histórico com botões editar/deletar
     const hl = $('hist-list'); hl.innerHTML = '';
-    if (!docs.length) { hl.innerHTML = `<div class="empty"><span class="empty-ico">📊</span><p class="empty-tit">Sem histórico</p><p class="empty-txt">Complete seu primeiro treino!</p></div>`; return; }
+    if (!docs.length) {
+      hl.innerHTML = '<div class="empty"><span class="empty-ico">📊</span><p class="empty-tit">Sem histórico</p><p class="empty-txt">Complete seu primeiro treino!</p></div>';
+      return;
+    }
+
     docs.slice(0, 30).forEach(h => {
-      const card = document.createElement('div'); card.className = 'hcard';
-      const tags = [];
-      if (h.cardio?.minutos > 0) tags.push(`<span class="htag co">❤️ ${h.cardio.aparelho} · ${h.cardio.minutos}min</span>`);
-      (h.forca || []).forEach(ex => { if (ex.carga > 0 || ex.reps > 0) tags.push(`<span class="htag">${ex.nome_aparelho} · ${ex.carga}kg × ${ex.reps} reps</span>`); });
-      let extra = '';
+      const card = document.createElement('div');
+      card.className = 'hcard';
+
+      // Header com título, data e botões
+      const hd = document.createElement('div'); hd.className = 'hcard-hd';
+      const tipo = document.createElement('span'); tipo.className = 'hcard-tipo'; tipo.textContent = h.tipo_treino;
+      const actions = document.createElement('div'); actions.className = 'hcard-actions';
+      const dt = document.createElement('span'); dt.className = 'hcard-dt'; dt.textContent = fmtDate(h.data);
+      const btnEdit = document.createElement('button'); btnEdit.className = 'hcard-edit-btn'; btnEdit.title = 'Editar'; btnEdit.textContent = '✏️';
+      const btnDel  = document.createElement('button'); btnDel.className  = 'hcard-del-btn';  btnDel.title  = 'Excluir'; btnDel.textContent = '🗑️';
+      actions.appendChild(dt); actions.appendChild(btnEdit); actions.appendChild(btnDel);
+      hd.appendChild(tipo); hd.appendChild(actions);
+      card.appendChild(hd);
+
+      // Detalhe checkout
       if (h.tipo_treino === '🚪 Check-out' && h.checkin && h.checkout) {
         const ent = h.checkin.horario  ? new Date(h.checkin.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
         const sai = h.checkout.horario ? new Date(h.checkout.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
-        const dur = h.duracao_minutos != null ? (h.duracao_minutos >= 60 ? `${Math.floor(h.duracao_minutos/60)}h ${h.duracao_minutos%60}min` : `${h.duracao_minutos} min`) : '—';
-        extra = `<div class="co-detail">
-          <div class="co-row"><span>🕐 Entrada</span><strong>${ent}</strong></div>
-          <div class="co-row"><span>🕐 Saída</span><strong>${sai}</strong></div>
-          <div class="co-row"><span>⏱️ Duração</span><strong class="co-dur-v">${dur}</strong></div>
-          ${h.checkin.lat  ? `<div class="co-row"><span>📍 Entrada</span><a class="co-map" href="https://maps.google.com/?q=${h.checkin.lat},${h.checkin.lng}" target="_blank">Ver no mapa</a></div>` : ''}
-          ${h.checkout.lat ? `<div class="co-row"><span>📍 Saída</span><a class="co-map" href="https://maps.google.com/?q=${h.checkout.lat},${h.checkout.lng}" target="_blank">Ver no mapa</a></div>` : ''}
-        </div>`;
+        const dur = h.duracao_minutos != null ? (h.duracao_minutos >= 60 ? Math.floor(h.duracao_minutos/60) + 'h ' + (h.duracao_minutos%60) + 'min' : h.duracao_minutos + ' min') : '—';
+
+        const detail = document.createElement('div'); detail.className = 'co-detail';
+
+        const rows = [
+          ['🕐 Entrada', ent, false],
+          ['🕐 Saída',   sai, false],
+          ['⏱️ Duração', dur, true],
+        ];
+        rows.forEach(([label, val, isDur]) => {
+          const row = document.createElement('div'); row.className = 'co-row';
+          const sp  = document.createElement('span'); sp.textContent = label;
+          const st  = document.createElement('strong'); st.textContent = val;
+          if (isDur) st.className = 'co-dur-v';
+          row.appendChild(sp); row.appendChild(st); detail.appendChild(row);
+        });
+
+        if (h.checkin.lat) {
+          const row = document.createElement('div'); row.className = 'co-row';
+          const sp  = document.createElement('span'); sp.textContent = '📍 Entrada';
+          const a   = document.createElement('a'); a.className = 'co-map'; a.textContent = 'Ver no mapa';
+          a.href = 'https://maps.google.com/?q=' + h.checkin.lat + ',' + h.checkin.lng; a.target = '_blank';
+          row.appendChild(sp); row.appendChild(a); detail.appendChild(row);
+        }
+        if (h.checkout.lat) {
+          const row = document.createElement('div'); row.className = 'co-row';
+          const sp  = document.createElement('span'); sp.textContent = '📍 Saída';
+          const a   = document.createElement('a'); a.className = 'co-map'; a.textContent = 'Ver no mapa';
+          a.href = 'https://maps.google.com/?q=' + h.checkout.lat + ',' + h.checkout.lng; a.target = '_blank';
+          row.appendChild(sp); row.appendChild(a); detail.appendChild(row);
+        }
+        card.appendChild(detail);
       }
-      card.innerHTML = `<div class="hcard-hd"><span class="hcard-tipo">${h.tipo_treino}</span><span class="hcard-dt">${fmtDate(h.data)}</span></div>${extra}<div class="hcard-tags">${tags.join('') || (!extra ? '<span class="htag">Treino registrado</span>' : '')}</div>`;
+
+      // Tags cardio e força
+      const tagsWrap = document.createElement('div'); tagsWrap.className = 'hcard-tags';
+      const tags = [];
+      if (h.cardio?.minutos > 0) {
+        const t = document.createElement('span'); t.className = 'htag co';
+        t.textContent = '❤️ ' + h.cardio.aparelho + ' · ' + h.cardio.minutos + 'min';
+        tagsWrap.appendChild(t);
+      }
+      (h.forca || []).forEach(ex => {
+        if (ex.carga > 0 || ex.reps > 0) {
+          const t = document.createElement('span'); t.className = 'htag';
+          t.textContent = ex.nome_aparelho + ' · ' + ex.carga + 'kg × ' + ex.reps + ' reps';
+          tagsWrap.appendChild(t);
+        }
+      });
+      if (!tagsWrap.children.length && h.tipo_treino !== '🚪 Check-out') {
+        const t = document.createElement('span'); t.className = 'htag'; t.textContent = 'Treino registrado';
+        tagsWrap.appendChild(t);
+      }
+      card.appendChild(tagsWrap);
+
+      // Eventos dos botões
+      btnDel.addEventListener('click', async () => {
+        if (!confirm('Excluir este registro de "' + h.tipo_treino + '" em ' + fmtDate(h.data) + '?')) return;
+        showL();
+        try {
+          await deleteDoc(doc(db, 'historico_treinos', h.id));
+          card.style.opacity = '0'; card.style.transform = 'translateX(20px)'; card.style.transition = 'all .3s';
+          setTimeout(() => card.remove(), 300);
+          if (h.tipo_treino !== '🚪 Check-out') {
+            const ct = Math.max(0, (S.ud.contador_treinos ?? 1) - 1);
+            await updateDoc(doc(db, 'usuarios', S.user.uid), { contador_treinos: ct });
+            S.ud.contador_treinos = ct; atualizaStats();
+          }
+          toast('Registro excluído.', 'i');
+        } catch(e) { toast('Erro: ' + e.message, 'e'); }
+        hideL();
+      });
+
+      btnEdit.addEventListener('click', () => abreEditHistorico(h, card));
+
       hl.appendChild(card);
     });
   } catch(e) { console.error(e); toast('Erro relatório.', 'e'); }
+}
+
+// ── EDITAR HISTÓRICO ─────────────────────────────────────────
+function abreEditHistorico(h, cardEl) {
+  // Cria modal de edição inline
+  const overlay = document.createElement('div');
+  overlay.className = 'modal';
+  overlay.style.zIndex = '5500';
+
+  const isCheckout = h.tipo_treino === '🚪 Check-out';
+  const cardioAp   = h.cardio?.aparelho || 'esteira';
+  const cardioMin  = h.cardio?.minutos  || 0;
+
+  const forçaRows = (h.forca || []).map((ex, i) => `
+    <div class="hedit-ex-row" data-idx="${i}">
+      <div class="hedit-ex-nm">${ex.nome_aparelho}</div>
+      <div class="hedit-ex-fields">
+        <div class="hedit-field">
+          <label class="fl">Carga (kg)</label>
+          <input type="number" class="hedit-carga" value="${ex.carga || 0}" min="0" step="0.5" inputmode="decimal"/>
+        </div>
+        <div class="hedit-field">
+          <label class="fl">Reps</label>
+          <input type="number" class="hedit-reps" value="${ex.reps || 0}" min="0" inputmode="numeric"/>
+        </div>
+      </div>
+    </div>`).join('');
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="mhd">
+        <h3 class="mtit">Editar Registro</h3>
+        <button class="mclose" id="hedit-close">✕</button>
+      </div>
+
+      <div class="hedit-tipo-row">
+        <span class="fl">Tipo de treino</span>
+        <select id="hedit-tipo" style="margin-top:6px">
+          <option value="Treino A" ${h.tipo_treino==='Treino A'?'selected':''}>Treino A</option>
+          <option value="Treino B" ${h.tipo_treino==='Treino B'?'selected':''}>Treino B</option>
+          <option value="Treino C" ${h.tipo_treino==='Treino C'?'selected':''}>Treino C</option>
+          <option value="🚪 Check-out" ${isCheckout?'selected':''}>🚪 Check-out</option>
+        </select>
+      </div>
+
+      ${!isCheckout ? `
+      <div style="margin-top:14px">
+        <span class="fl">❤️ Cardio</span>
+        <div class="f2" style="margin-top:6px">
+          <select id="hedit-cardio-ap">
+            <option value="esteira"  ${cardioAp==='esteira' ?'selected':''}>🏃 Esteira</option>
+            <option value="bike"     ${cardioAp==='bike'    ?'selected':''}>🚴 Bike</option>
+            <option value="eliptico" ${cardioAp==='eliptico'?'selected':''}>🌀 Elíptico</option>
+            <option value="remo"     ${cardioAp==='remo'    ?'selected':''}>🚣 Remo</option>
+            <option value="escada"   ${cardioAp==='escada'  ?'selected':''}>🪜 Escada</option>
+          </select>
+          <input id="hedit-cardio-min" type="number" value="${cardioMin}" min="0" max="180" placeholder="min" inputmode="numeric"/>
+        </div>
+      </div>
+
+      ${forçaRows.length ? `
+      <div style="margin-top:16px">
+        <span class="fl">🏋️ Exercícios</span>
+        <div id="hedit-forca" style="margin-top:10px;display:flex;flex-direction:column;gap:10px">
+          ${forçaRows}
+        </div>
+      </div>` : ''}` : ''}
+
+      <div class="fac" style="margin-top:20px">
+        <button class="btn btn-ghost" id="hedit-cancel">Cancelar</button>
+        <button class="btn btn-acc" id="hedit-save">💾 Salvar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('active'));
+
+  overlay.querySelector('#hedit-close').addEventListener('click',  () => overlay.remove());
+  overlay.querySelector('#hedit-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelector('#hedit-save').addEventListener('click', async () => {
+    showL();
+    try {
+      const novoTipo = overlay.querySelector('#hedit-tipo').value;
+      const updates  = { tipo_treino: novoTipo };
+
+      if (!isCheckout) {
+        const ap  = overlay.querySelector('#hedit-cardio-ap');
+        const min = overlay.querySelector('#hedit-cardio-min');
+        if (ap && min) updates.cardio = { aparelho: ap.value, minutos: parseInt(min.value) || 0 };
+
+        // Atualiza cargas e reps
+        const novaForca = (h.forca || []).map((ex, i) => {
+          const row   = overlay.querySelector(`.hedit-ex-row[data-idx="${i}"]`);
+          const carga = row ? parseFloat(row.querySelector('.hedit-carga').value) || 0 : ex.carga;
+          const reps  = row ? parseInt(row.querySelector('.hedit-reps').value)   || 0 : ex.reps;
+          return { ...ex, carga, reps };
+        });
+        updates.forca = novaForca;
+      }
+
+      await updateDoc(doc(db, 'historico_treinos', h.id), updates);
+      overlay.remove();
+      toast('✅ Registro atualizado!');
+      // Recarrega o relatório
+      showL(); await carregaRel(); hideL();
+    } catch(e) { toast('Erro: ' + e.message, 'e'); }
+    hideL();
+  });
 }
 
 // ── BOTTOM NAV ───────────────────────────────────────────────
