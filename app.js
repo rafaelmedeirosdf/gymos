@@ -332,7 +332,9 @@ async function carregaDescTreinos() {
       const el = $(`td-${t}`); if (!el) return;
       const d  = snap.docs.find(d => d.data().nome === `Treino ${t}`);
       const exs = d ? d.data().exercicios || [] : [];
-      el.textContent = exs.length ? `${exs.length} exercício${exs.length > 1 ? 's' : ''}` : 'Sem exercícios — monte na aba Montar';
+      // Conta só exercícios reais (com nome)
+      const count = exs.filter(e => e.nome).length;
+      el.textContent = count ? `${count} exercício${count > 1 ? 's' : ''}` : 'Sem exercícios — monte na aba Montar';
     });
   } catch(e) { console.error(e); }
 }
@@ -346,7 +348,27 @@ async function selTreino(tipo) {
   S.tipoSel = tipo; showL();
   try {
     const snap = await getDocs(query(collection(db, 'treinos_base'), where('usuario_id', '==', S.user.uid), where('nome', '==', `Treino ${tipo}`)));
-    S.treinoAtual = snap.empty ? { nome: `Treino ${tipo}`, exercicios: [] } : snap.docs[0].data();
+    if (snap.empty) {
+      S.treinoAtual = { nome: `Treino ${tipo}`, exercicios: [] };
+    } else {
+      const data = snap.docs[0].data();
+      // Sincroniza número e foto com aparelhos atualizados
+      const exs = (data.exercicios || []).map(ex => {
+        if (ex.aparelho_id) {
+          const ap = S.aps.find(a => a.id === ex.aparelho_id);
+          if (ap) {
+            return {
+              ...ex,
+              numero_aparelho: ap.numero_aparelho,
+              url_foto: ap.url_foto || ex.url_foto,
+              video_url: ap.video_url || ex.video_url,
+            };
+          }
+        }
+        return ex;
+      });
+      S.treinoAtual = { ...data, exercicios: exs };
+    }
     renderExec(); startTimer(); S.activeTab = 'treino'; show('exec');
   } catch(e) { toast('Erro: ' + e.message, 'e'); }
   hideL();
@@ -574,8 +596,27 @@ async function carregaMontar() {
     const snap = await getDocs(query(collection(db, 'treinos_base'), where('usuario_id', '==', S.user.uid)));
     ['A','B','C'].forEach(t => {
       const d = snap.docs.find(d => d.data().nome === `Treino ${t}`);
-      if (d) { S.mExs[t] = d.data().exercicios || []; S.mIds[t] = d.id; }
-      else   { S.mExs[t] = []; S.mIds[t] = null; }
+      if (d) {
+        // Sincroniza número e foto de cada exercício com o aparelho cadastrado
+        const exs = (d.data().exercicios || []).map(ex => {
+          if (ex.aparelho_id) {
+            const ap = S.aps.find(a => a.id === ex.aparelho_id);
+            if (ap) {
+              return {
+                ...ex,
+                numero_aparelho: ap.numero_aparelho,
+                url_foto: ap.url_foto || ex.url_foto,
+                video_url: ap.video_url || ex.video_url,
+              };
+            }
+          }
+          return ex;
+        });
+        S.mExs[t] = exs;
+        S.mIds[t] = d.id;
+      } else {
+        S.mExs[t] = []; S.mIds[t] = null;
+      }
     });
     renderMontar();
   } catch(e) { toast('Erro: ' + e.message, 'e'); }
@@ -669,8 +710,18 @@ function popularSelAp() {
 $('btn-conf-addex').addEventListener('click', () => {
   const nome = $('ex-nome').value.trim();
   if (!nome) { toast('Digite o nome.', 'e'); return; }
-  const ap  = S.aps.find(a => a.id === $('sel-ap-ex').value);
-  const obj = { aparelho_id: ap?.id || '', nome, numero_aparelho: $('ex-num').value.trim(), url_foto: ap?.url_foto || '', video_url: $('ex-vid').value.trim(), series_meta: parseInt($('ex-ser').value) || 3, reps_meta: parseInt($('ex-rep').value) || 12 };
+  const apId = $('sel-ap-ex').value;
+  const ap   = S.aps.find(a => a.id === apId);
+  // Prioriza dados do aparelho cadastrado; fallback para manual
+  const obj = {
+    aparelho_id:     ap?.id || '',
+    nome,
+    numero_aparelho: ap ? ap.numero_aparelho : $('ex-num').value.trim(),
+    url_foto:        ap?.url_foto || '',
+    video_url:       ap?.video_url || $('ex-vid').value.trim(),
+    series_meta:     parseInt($('ex-ser').value) || 3,
+    reps_meta:       parseInt($('ex-rep').value) || 12,
+  };
   if (S.editExIdx !== null) { S.mExs[S.mTipo][S.editExIdx] = obj; toast('Atualizado! ✅'); }
   else { S.mExs[S.mTipo].push(obj); toast(`"${nome}" adicionado! 💪`); }
   $('m-addex').classList.add('hidden'); renderMontar();
